@@ -1,6 +1,7 @@
 import optparse
 import time
 import multiprocessing
+import re
 import asyncio
 import sys
 
@@ -64,6 +65,7 @@ class FSEvent(object):
         FSEvent.num_fs_events += 1
     def __del__(self):
         FSEvent.num_fs_events -= 1
+
     @property
     def id(self):
         return self.__id
@@ -79,36 +81,56 @@ class FSEvent(object):
     @property
     def type(self):
         return self.__type
-    @property
-    def time(self):
-        return self.__time
-    @property
-    def volume_info(self):
-        return self.__volume_info
+    # @property
+    # def time(self):
+    #     return self.__time
+    # @property
+    # def volume_info(self):
+    #     return self.__volume_info
+
     @id.setter
     def id(self, id):
         if isinstance(id,str):
             self.__id = id
         else:
             print("Incorrect type for id attribute!")
-            self.set_create()  # default
+            raise TypeError
+
     @file_name.setter
     def file_name(self, file_name):
         if isinstance(file_name, str):
             self.__file_name = file_name
         else:
             print("Incorrect type for file_name attribute!")
-            self.set_create()  # default
+            raise TypeError
 
+    @dir_path.setter
+    def dir_path(self, dir_path):
+        if isinstance(dir_path, str):
+            self.__dir_path = dir_path
+        else:
+            print("Incorrect type for dir_path attribute!")
+            raise TypeError
 
-class ListFSEvent():
-    def __init__(self,fs_event):
-        self.size = 0
+    @uid.setter
+    def uid(self, uid):
+        if isinstance(uid, str):
+            self.__uid = uid
+        else:
+            print("Incorrect type for uid attribute!")
+            raise TypeError
 
-
+    @type.setter
+    def type(self, type):
+        if isinstance(type, EventType):
+            self.__type = type
+        else:
+            print("Incorrect type for type attribute!")
+            raise TypeError
 
 def parse_audit_line(line):
-    pass
+    type=re.search(r"",line)
+
 
 def parse_audit_lines(audit_lines,ptr_read_line):
     ptr_read_line_after_parse = ptr_read_line
@@ -149,3 +171,39 @@ else:
     proc_reader.terminate()
 
 
+# class ListFSEvent():
+#     def __init__(self,fs_event):
+#         if isinstance(fs_event,FSEvent)
+#             self.fs_event = self.fs_event.append(fs_event)
+#             self.index = len(self.fs_event)
+#             self.size = len(self.fs_event)
+#         else:
+#             print("Incorrect type for file_name attribute!")
+#             raise TypeError
+#
+#     def add(self, fs_event):
+#         if isinstance(fs_event,FSEvent)
+#             self.fs_event = self.fs_event.append(fs_event)
+#             self.index = len(self.fs_event)
+#             self.size = len(self.fs_event)
+#         else:
+#             print("Incorrect type for file_name attribute!")
+#             raise TypeError
+#     def search(self,id):
+#         for ev in self:
+#             if(self.fs_event.id == id):
+#                 return self.fs_event
+#     def remove(self,id):
+#         for ev in self:
+#             if(ev.fs_event.id == id):
+#                 self.remove(ev)
+#
+#
+#     def __iter__(self):
+#         return self.fs_event[self.index]
+#
+#     def __next__(self):
+#         if self.index == self.size
+#             raise StopIteration
+#         self.index = self.index + 1
+#         return self.fs_event[self.index]
