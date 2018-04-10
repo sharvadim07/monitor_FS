@@ -6,7 +6,7 @@ import asyncio
 import sys
 
 p = optparse.OptionParser()
-p.add_option("-i", action="store", type="string", dest="infile", default="/var/log/audit/audit1.log")
+p.add_option("-i", action="store", type="string", dest="infile", default="/var/log/audit/audit.log")
 
 opts, args = p.parse_args()
 auditd_name_file = opts.infile
@@ -54,8 +54,8 @@ class EventType(object):
 
 class FSEvent(object):
     num_fs_events = 0
-    def __init__(self,id,file_name,dir_path,uid,type,time,volume_info):
-        self.id=id
+    def __init__(self,id):
+        self.__id=id
         # self.__file_name = file_name
         # self.__dir_path = dir_path
         # self.__uid = uid
@@ -128,13 +128,25 @@ class FSEvent(object):
             print("Incorrect type for type attribute!")
             raise TypeError
 
+#dict of FSevents key is event ID
+events_dict = dict()
+
 def parse_audit_line(line):
-    type=re.search(r"",line)
+    type_and_id=re.search(r'type=(\w+).+audit[(]?([0-9.:]+)[:]?',line)
+    if type_and_id and type_and_id.groups()[0] in [ "SYSCALL" , "CWD" , "PATH" ]:
+        if type_and_id.groups()[0] == "SYSCALL":
+            if not type_and_id.groups()[1] in events_dict:
+                event = FSEvent(type_and_id.groups()[1])
+                events_dict[type_and_id.groups()[1]] = event
+                
+        else type_and_id.groups()[0] == "CWD"
+
+
 
 
 def parse_audit_lines(audit_lines,ptr_read_line):
     ptr_read_line_after_parse = ptr_read_line
-    for cur_line in audit_lines[ptr_read_line,]:
+    for cur_line in audit_lines[ptr_read_line:]:
         parse_audit_line(cur_line)
         ptr_read_line_after_parse += 1
     return ptr_read_line_after_parse
