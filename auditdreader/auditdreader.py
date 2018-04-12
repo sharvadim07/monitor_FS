@@ -132,14 +132,45 @@ class FSEvent(object):
 events_dict = dict()
 
 def parse_audit_line(line):
+    global events_dict
     type_and_id=re.search(r'type=(\w+).+audit[(]?([0-9.:]+)[:]?',line)
     if type_and_id and type_and_id.groups()[0] in [ "SYSCALL" , "CWD" , "PATH" ]:
-        if type_and_id.groups()[0] == "SYSCALL":
-            if not type_and_id.groups()[1] in events_dict:
+        event = events_dict[type_and_id.groups()[1]]
+        if not event:
+            if type_and_id.groups()[0] == "SYSCALL" :
+                #add events
                 event = FSEvent(type_and_id.groups()[1])
                 events_dict[type_and_id.groups()[1]] = event
-                
-        else type_and_id.groups()[0] == "CWD"
+                syscall_num=re.search(r' syscall=([0-9]{1,4}) ', line)
+                if syscall_num.groups()[0] == 5:
+                    event.type = EventType("create")
+                elif syscall_num == 10:
+                    event.type = EventType("delete")
+
+            if type_and_id.groups()[0] in [ "CWD" , "PATH" ]:
+                return -1
+        else:
+            if type_and_id.groups()[0] == "SYSCALL" :
+                return -1
+            elif type_and_id.groups()[0] == "CWD":
+                #parsing CWD line
+                cwd = re.search(r' cwd=["]?(\w+)["]?', line)
+                event.dir_path = cwd.groups()[0]
+            elif type_and_id.groups()[0] == "PATH":
+                #TODO: parsing PATH line
+                if event.dir_path:
+                    file_name = re.search(r' item=[0-9]{1,3} name=["]?(\w+)["]? ', line)
+                    event.file_name = file_name.groups()[0]
+                    name_type = re.search(r' nametype=(\w+) ')
+                    if name_type.groups()[0] == "CREATE":
+                        event.type.set_create()
+                    elif name_type.groups()[0] == "DELETE":
+                        event.type.set_delete()
+                    elif name_type.groups()[0] == "NORMAL":
+                        event.type.set_change()
+                else:
+                    dir_path = re.search(r' item=[0-9]{1,3} name=["]?(\w+)["]? ', line)
+                    event.dir_path = dir_path.groups()[0]
 
 
 
