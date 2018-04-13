@@ -212,6 +212,7 @@ def parse_audit_line(line):
                 # add events
                 event = FSEvent(type_and_id.groups()[1])
                 events_dict[type_and_id.groups()[1]] = event
+<<<<<<< a4b9a90fa959e8f7e81360e0d09219af5a45e063
                 syscall_num = re.search(r' syscall=([0-9]{1,5}) ', line)
                 if syscall_num:
                     event.type = EventType(syscall_num.groups()[0])
@@ -220,6 +221,17 @@ def parse_audit_line(line):
                     event.uid = user_id.groups()[0]
             elif type_and_id.groups()[0] in ("CWD", "PATH"):
                 logging.warning("In line\n"+line+"\n not expected CWD or PATH type")
+=======
+                syscall_num=re.search(r' syscall=([0-9]{1,4}) ', line)
+                if syscall_num.groups()[0] == 5:
+                    event.type = EventType("create")
+                elif syscall_num == 10:
+                    event.type = EventType("delete")
+                else:
+                    event.type = EventType("change")
+
+            if type_and_id.groups()[0] in [ "CWD" , "PATH" ]:
+>>>>>>> Add new else in parse SYSCALL
                 return -1
         else:
             if type_and_id.groups()[0] == "SYSCALL":
