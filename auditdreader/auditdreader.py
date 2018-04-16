@@ -5,14 +5,21 @@ import re
 import asyncio
 import sys
 
+# parse programm options
 p = optparse.OptionParser()
 p.add_option("-i", action="store", type="string", dest="infile", default="/var/log/audit/audit.log")
-
 opts, args = p.parse_args()
-auditd_name_file = opts.infile
-
 
 class ReaderProcess(multiprocessing.Process):
+    """
+    Reader Process of auditd logging file. Performed as a separated process
+
+    Arguments:
+        auditd_name_file -- path and name to auditd log file
+        output_q -- queue (multiprocessing.JoinableQueue()) for sending read lines to the parent process
+    Methods:
+        run -- run the read auditd log file
+    """
     def __init__(self, auditd_name_file, output_q):
         multiprocessing.Process.__init__(self)
         self.auditd_name_file = auditd_name_file
@@ -32,7 +39,15 @@ class ReaderProcess(multiprocessing.Process):
         except (IOError,ChildProcessError) as e_status:
             return e_status
 
+
+
 class EventType(object):
+    """
+    Event Type
+
+    properties:
+        type -- type in string format. use setter of change value
+    """
     def __init__(self,type):
         self.type=type
     def set_create(self):
@@ -53,6 +68,20 @@ class EventType(object):
             self.set_create()  # default
 
 class FSEvent(object):
+    """File System Event
+
+    variables:
+    1 - number of file system events
+
+    properties:
+    id -- string of event ID
+    file_name -- file name
+    dir_path -- directory path
+    type -- event type (object of class EventType)
+    uid -- user name or id
+    type -- time of changes
+    volume_info -- volume of data in Kbytes
+    """
     num_fs_events = 0
     def __init__(self,id):
         self.__id=id
@@ -128,11 +157,16 @@ class FSEvent(object):
             print("Incorrect type for type attribute!")
             raise TypeError
 
-#dict of FSevents key is event ID
-events_dict = dict()
-
 def parse_audit_line(line):
+    """
+    Parsing one current line from auditd log. Also add and edit new FSEvents
+
+    :param line: current line for parsing
+    :return: return -1 if error while parsing
+    """
+    #maybe this dict should be as parameter
     global events_dict
+    #All lines in auditd log consist strings of this REGEXP
     type_and_id=re.search(r'type=(\w+).+audit[(]?([0-9.:]+)[:]?',line)
     if type_and_id and type_and_id.groups()[0] in [ "SYSCALL" , "CWD" , "PATH" ]:
         event = events_dict[type_and_id.groups()[1]]
@@ -146,6 +180,8 @@ def parse_audit_line(line):
                     event.type = EventType("create")
                 elif syscall_num == 10:
                     event.type = EventType("delete")
+                else
+                    event.type = EventType("change")
 
             if type_and_id.groups()[0] in [ "CWD" , "PATH" ]:
                 return -1
@@ -173,9 +209,14 @@ def parse_audit_line(line):
                     event.dir_path = dir_path.groups()[0]
 
 
-
-
 def parse_audit_lines(audit_lines,ptr_read_line):
+    """
+    Parse a few auditd log lines
+
+    :param audit_lines: list of of few auditd lines
+    :param ptr_read_line: a pointer in list audit_lines where to start parsing
+    :return:
+    """
     ptr_read_line_after_parse = ptr_read_line
     for cur_line in audit_lines[ptr_read_line:]:
         parse_audit_line(cur_line)
@@ -183,17 +224,30 @@ def parse_audit_lines(audit_lines,ptr_read_line):
     return ptr_read_line_after_parse
 
 
+#get auditd file path and name
+auditd_name_file = opts.infile
+
+#dict of FSevents key is event ID
+events_dict = dict()
+
+#create queue
 queue = multiprocessing.JoinableQueue()
+#create reader process
 proc_reader = ReaderProcess(auditd_name_file, queue)
 proc_reader.daemon = True
+#start reader deamon
 proc_reader.start()
 
+#list of auditd log lines (strings)
 audit_lines = queue.get()
-#for line in audit_lines:
+
+#if file not empty then start processing it
 if len(audit_lines) > 0:
     ptr_read_line = 0
+    # parse first lines which readed
     ptr_read_line = parse_audit_lines(audit_lines,ptr_read_line)
     queue.task_done()
+    # while reader deamon working we add NEW lines to list audit_lines and parse its
     while proc_reader.is_alive():
         if queue.empty():
             if ptr_read_line < len(audit_lines):
@@ -205,7 +259,6 @@ if len(audit_lines) > 0:
         else:
             line = queue.get()
             audit_lines.append(line)
-
             # for debug
             #print("new line:", line)
             #sys.stdout.flush()
