@@ -10,6 +10,7 @@ p = optparse.OptionParser()
 p.add_option("-i", action="store", type="string", dest="infile", default="/var/log/audit/audit.log")
 opts, args = p.parse_args()
 
+
 class ReaderProcess(multiprocessing.Process):
     """
     Reader Process of auditd logging file. Performed as a separated process
@@ -20,10 +21,12 @@ class ReaderProcess(multiprocessing.Process):
     Methods:
         run -- run the read auditd log file
     """
+
     def __init__(self, auditd_name_file, output_q):
         multiprocessing.Process.__init__(self)
         self.auditd_name_file = auditd_name_file
         self.output_q = output_q
+
     def run(self):
         try:
             audit_file = open(self.auditd_name_file, 'r');
@@ -36,9 +39,8 @@ class ReaderProcess(multiprocessing.Process):
                     self.output_q.put(line)
                 else:
                     time.sleep(1)
-        except (IOError,ChildProcessError) as e_status:
+        except (IOError, ChildProcessError) as e_status:
             return e_status
-
 
 
 class EventType(object):
@@ -48,24 +50,31 @@ class EventType(object):
     properties:
         type -- type in string format. use setter of change value
     """
-    def __init__(self,type):
-        self.type=type
+
+    def __init__(self, type):
+        self.type = type
+
     def set_create(self):
         self.__type = "create"
+
     def set_change(self):
         self.__type = "change"
+
     def set_delete(self):
         self.__type = "delete"
+
     @property
     def type(self):
         return self.__type
+
     @type.setter
-    def type(self,type):
-        if type in ( "create" , "change" , "delete"):
+    def type(self, type):
+        if type in ("create", "change", "delete"):
             self.__type = type
         else:
             print("Set default type - create.")
             self.set_create()  # default
+
 
 class FSEvent(object):
     """File System Event
@@ -83,8 +92,9 @@ class FSEvent(object):
     volume_info -- volume of data in Kbytes
     """
     num_fs_events = 0
-    def __init__(self,id):
-        self.__id=id
+
+    def __init__(self, id):
+        self.__id = id
         # self.__file_name = file_name
         # self.__dir_path = dir_path
         # self.__uid = uid
@@ -92,24 +102,30 @@ class FSEvent(object):
         # self.__time = time
         # self.__volume_info = volume_info  # In bytes
         FSEvent.num_fs_events += 1
+
     def __del__(self):
         FSEvent.num_fs_events -= 1
 
     @property
     def id(self):
         return self.__id
+
     @property
     def file_name(self):
         return self.__file_name
+
     @property
     def dir_path(self):
         return self.__dir_path
+
     @property
     def uid(self):
         return self.__uid
+
     @property
     def type(self):
         return self.__type
+
     # @property
     # def time(self):
     #     return self.__time
@@ -119,7 +135,7 @@ class FSEvent(object):
 
     @id.setter
     def id(self, id):
-        if isinstance(id,str):
+        if isinstance(id, str):
             self.__id = id
         else:
             print("Incorrect type for id attribute!")
@@ -157,6 +173,7 @@ class FSEvent(object):
             print("Incorrect type for type attribute!")
             raise TypeError
 
+
 def parse_audit_line(line):
     """
     Parsing one current line from auditd log. Also add and edit new FSEvents
@@ -164,52 +181,59 @@ def parse_audit_line(line):
     :param line: current line for parsing
     :return: return -1 if error while parsing
     """
-    #maybe this dict should be as parameter
+    # maybe this dict should be as parameter
     global events_dict
-    #All lines in auditd log consist strings of this REGEXP
-    type_and_id=re.search(r'type=(\w+).+audit[(]?([0-9.:]+)[:]?',line)
-    if type_and_id and type_and_id.groups()[0] in [ "SYSCALL" , "CWD" , "PATH" ]:
-        event = events_dict[type_and_id.groups()[1]]
+    # All lines in auditd log consist strings of this REGEXP
+    type_and_id = re.search(r'type=(\w+).+audit[(]?([0-9.:]+)[:]?', line)
+    if type_and_id and type_and_id.groups()[0] in ["SYSCALL", "CWD", "PATH"]:
+        event = events_dict.get(type_and_id.groups()[1])
         if not event:
-            if type_and_id.groups()[0] == "SYSCALL" :
-                #add events
+            if type_and_id.groups()[0] == "SYSCALL":
+                num_items = re.search(r' items=([0-9]{1,4}) ',line)
+                if num_items and num_items.groups()[0] == "0":
+                    return -2
+                # add events
                 event = FSEvent(type_and_id.groups()[1])
                 events_dict[type_and_id.groups()[1]] = event
-                syscall_num=re.search(r' syscall=([0-9]{1,4}) ', line)
-                if syscall_num.groups()[0] == 5:
+                syscall_num = re.search(r' syscall=([0-9]{1,4}) ', line)
+                if syscall_num.groups()[0] == "5":
                     event.type = EventType("create")
-                elif syscall_num == 10:
+                elif syscall_num == "10":
                     event.type = EventType("delete")
-                else
+                else:
                     event.type = EventType("change")
 
-            if type_and_id.groups()[0] in [ "CWD" , "PATH" ]:
+            if type_and_id.groups()[0] in ["CWD", "PATH"]:
                 return -1
         else:
-            if type_and_id.groups()[0] == "SYSCALL" :
+            if type_and_id.groups()[0] == "SYSCALL":
                 return -1
             elif type_and_id.groups()[0] == "CWD":
-                #parsing CWD line
-                cwd = re.search(r' cwd=["]?(\w+)["]?', line)
-                event.dir_path = cwd.groups()[0]
+                # parsing CWD line
+                cwd = re.search(r' cwd=["]?([^"]+)["]?', line)
+                if cwd:
+                    event.dir_path = cwd.groups()[0]
             elif type_and_id.groups()[0] == "PATH":
-                #TODO: parsing PATH line
+                # TODO: parsing PATH line
                 if event.dir_path:
-                    file_name = re.search(r' item=[0-9]{1,3} name=["]?(\w+)["]? ', line)
-                    event.file_name = file_name.groups()[0]
-                    name_type = re.search(r' nametype=(\w+) ')
-                    if name_type.groups()[0] == "CREATE":
-                        event.type.set_create()
-                    elif name_type.groups()[0] == "DELETE":
-                        event.type.set_delete()
-                    elif name_type.groups()[0] == "NORMAL":
-                        event.type.set_change()
+                    file_name = re.search(r' item=[0-9]{1,3} name=["]?([^"]+)["]? ', line)
+                    if file_name:
+                        event.file_name = file_name.groups()[0]
+                    name_type = re.search(r' nametype=(\w+) ',line)
+                    if name_type:
+                        if name_type.groups()[0] == "CREATE":
+                            event.type.set_create()
+                        elif name_type.groups()[0] == "DELETE":
+                            event.type.set_delete()
+                        #elif name_type.groups()[0] == "NORMAL":
+                        else:
+                            event.type.set_change()
                 else:
                     dir_path = re.search(r' item=[0-9]{1,3} name=["]?(\w+)["]? ', line)
                     event.dir_path = dir_path.groups()[0]
 
 
-def parse_audit_lines(audit_lines,ptr_read_line):
+def parse_audit_lines(audit_lines, ptr_read_line):
     """
     Parse a few auditd log lines
 
@@ -224,48 +248,49 @@ def parse_audit_lines(audit_lines,ptr_read_line):
     return ptr_read_line_after_parse
 
 
-#get auditd file path and name
+###MAIN
+
+# get auditd file path and name
 auditd_name_file = opts.infile
 
-#dict of FSevents key is event ID
+# dict of FSevents key is event ID
 events_dict = dict()
 
-#create queue
+# create queue
 queue = multiprocessing.JoinableQueue()
-#create reader process
+# create reader process
 proc_reader = ReaderProcess(auditd_name_file, queue)
 proc_reader.daemon = True
-#start reader deamon
+# start reader deamon
 proc_reader.start()
 
-#list of auditd log lines (strings)
+# list of auditd log lines (strings)
 audit_lines = queue.get()
 
-#if file not empty then start processing it
+# if file not empty then start processing it
 if len(audit_lines) > 0:
     ptr_read_line = 0
     # parse first lines which readed
-    ptr_read_line = parse_audit_lines(audit_lines,ptr_read_line)
+    ptr_read_line = parse_audit_lines(audit_lines, ptr_read_line)
     queue.task_done()
     # while reader deamon working we add NEW lines to list audit_lines and parse its
     while proc_reader.is_alive():
         if queue.empty():
             if ptr_read_line < len(audit_lines):
-                ptr_read_line = parse_audit_lines(audit_lines,ptr_read_line)
-            #for debug
-            #print("sleep 5 sec")
-            #sys.stdout.flush()
+                ptr_read_line = parse_audit_lines(audit_lines, ptr_read_line)
+            # for debug
+            # print("sleep 5 sec")
+            # sys.stdout.flush()
             time.sleep(5)
         else:
             line = queue.get()
             audit_lines.append(line)
             # for debug
-            #print("new line:", line)
-            #sys.stdout.flush()
+            # print("new line:", line)
+            # sys.stdout.flush()
 else:
     print("Audit file is empty!")
     proc_reader.terminate()
-
 
 # class ListFSEvent():
 #     def __init__(self,fs_event):
