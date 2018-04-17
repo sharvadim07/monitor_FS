@@ -2,6 +2,8 @@ import optparse
 import time
 import multiprocessing
 import re
+import logging
+import subprocess
 import asyncio
 import sys
 
@@ -9,7 +11,7 @@ import sys
 p = optparse.OptionParser()
 p.add_option("-i", action="store", type="string", dest="infile", default="/var/log/audit/audit.log")
 opts, args = p.parse_args()
-
+logging.basicConfig(filename="auditdreader.log", level=logging.INFO)
 
 class ReaderProcess(multiprocessing.Process):
     """
@@ -40,7 +42,8 @@ class ReaderProcess(multiprocessing.Process):
                 else:
                     time.sleep(1)
         except (IOError, ChildProcessError) as e_status:
-            return e_status
+            logging.error(e_status)
+            raise e_status
 
 
 class EventType(object):
@@ -71,9 +74,13 @@ class EventType(object):
     def type(self, type):
         if type in ("create", "change", "delete"):
             self.__type = type
+        elif type in ("5","8","9","39"):
+            self.set_create()
+        elif type in ("10","40"):
+            self.set_delete()
         else:
-            print("Set default type - create.")
-            self.set_create()  # default
+            logging.warning("Set default type - change.")
+            self.set_change()  # default
 
 
 class FSEvent(object):
@@ -87,7 +94,8 @@ class FSEvent(object):
     file_name -- file name
     dir_path -- directory path
     type -- event type (object of class EventType)
-    uid -- user name or id
+    uid -- user id
+    uid_str -- user name (string)
     type -- time of changes
     volume_info -- volume of data in Kbytes
     """
@@ -138,7 +146,7 @@ class FSEvent(object):
         if isinstance(id, str):
             self.__id = id
         else:
-            print("Incorrect type for id attribute!")
+            logging.error("Incorrect type for id attribute!")
             raise TypeError
 
     @file_name.setter
@@ -146,7 +154,7 @@ class FSEvent(object):
         if isinstance(file_name, str):
             self.__file_name = file_name
         else:
-            print("Incorrect type for file_name attribute!")
+            logging.error("Incorrect type for file_name attribute!")
             raise TypeError
 
     @dir_path.setter
@@ -154,15 +162,23 @@ class FSEvent(object):
         if isinstance(dir_path, str):
             self.__dir_path = dir_path
         else:
-            print("Incorrect type for dir_path attribute!")
+            logging.error("Incorrect type for dir_path attribute!")
             raise TypeError
 
     @uid.setter
     def uid(self, uid):
         if isinstance(uid, str):
             self.__uid = uid
+            # TODO read result id util
+            id_util_string = subprocess.check_output(['id', uid])
+            if id_util_string != -1:
+                # uid = 1000(student)
+                # TODO: not work!
+                user_id_str = re.search(r'uid=[0-9]+[(]?(\w+)[)]?',id_util_string)
+                if user_id_str:
+                    self.__uid_str = user_id_str.groups()[0]
         else:
-            print("Incorrect type for uid attribute!")
+            logging.error("Incorrect type for uid attribute!")
             raise TypeError
 
     @type.setter
@@ -170,7 +186,7 @@ class FSEvent(object):
         if isinstance(type, EventType):
             self.__type = type
         else:
-            print("Incorrect type for type attribute!")
+            logging.warning("Incorrect type for type attribute!")
             raise TypeError
 
 
@@ -185,28 +201,29 @@ def parse_audit_line(line):
     global events_dict
     # All lines in auditd log consist strings of this REGEXP
     type_and_id = re.search(r'type=(\w+).+audit[(]?([0-9.:]+)[:]?', line)
-    if type_and_id and type_and_id.groups()[0] in ["SYSCALL", "CWD", "PATH"]:
+    if type_and_id and type_and_id.groups()[0] in ("SYSCALL", "CWD", "PATH"):
         event = events_dict.get(type_and_id.groups()[1])
         if not event:
             if type_and_id.groups()[0] == "SYSCALL":
-                num_items = re.search(r' items=([0-9]{1,4}) ',line)
+                num_items = re.search(r' items=([0-9]{1,4}) ', line)
                 if num_items and num_items.groups()[0] == "0":
+                    #logging.debug("In line\n" + line + "\n SYSCALL not for files or directory. Items = 0")
                     return -2
                 # add events
                 event = FSEvent(type_and_id.groups()[1])
                 events_dict[type_and_id.groups()[1]] = event
-                syscall_num = re.search(r' syscall=([0-9]{1,4}) ', line)
-                if syscall_num.groups()[0] == "5":
-                    event.type = EventType("create")
-                elif syscall_num == "10":
-                    event.type = EventType("delete")
-                else:
-                    event.type = EventType("change")
-
-            if type_and_id.groups()[0] in ["CWD", "PATH"]:
+                syscall_num = re.search(r' syscall=([0-9]{1,5}) ', line)
+                if syscall_num:
+                    event.type = EventType(syscall_num.groups()[0])
+                user_id = re.search(r' uid=(\w+) ',line)
+                if user_id:
+                    event.uid = user_id.groups()[0]
+            elif type_and_id.groups()[0] in ("CWD", "PATH"):
+                logging.warning("In line\n"+line+"\n not expected CWD or PATH type")
                 return -1
         else:
             if type_and_id.groups()[0] == "SYSCALL":
+                logging.warning("In line\n" + line + "\n not expected SYSCALL type")
                 return -1
             elif type_and_id.groups()[0] == "CWD":
                 # parsing CWD line
@@ -214,7 +231,7 @@ def parse_audit_line(line):
                 if cwd:
                     event.dir_path = cwd.groups()[0]
             elif type_and_id.groups()[0] == "PATH":
-                # TODO: parsing PATH line
+                # parsing PATH line
                 if event.dir_path:
                     file_name = re.search(r' item=[0-9]{1,3} name=["]?([^"]+)["]? ', line)
                     if file_name:
@@ -289,8 +306,9 @@ if len(audit_lines) > 0:
             # print("new line:", line)
             # sys.stdout.flush()
 else:
-    print("Audit file is empty!")
+    logging.error("Audit file is empty!")
     proc_reader.terminate()
+    raise IOError
 
 # class ListFSEvent():
 #     def __init__(self,fs_event):
