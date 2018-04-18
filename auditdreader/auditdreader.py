@@ -16,7 +16,6 @@ logging.basicConfig(filename="auditdreader.log", level=logging.INFO)
 class ReaderProcess(multiprocessing.Process):
     """
     Reader Process of auditd logging file. Performed as a separated process
-
     Arguments:
         auditd_name_file -- path and name to auditd log file
         output_q -- queue (multiprocessing.JoinableQueue()) for sending read lines to the parent process
@@ -49,7 +48,6 @@ class ReaderProcess(multiprocessing.Process):
 class EventType(object):
     """
     Event Type
-
     properties:
         type -- type in string format. use setter of change value
     """
@@ -85,10 +83,8 @@ class EventType(object):
 
 class FSEvent(object):
     """File System Event
-
     variables:
     1 - number of file system events
-
     properties:
     id -- string of event ID
     file_name -- file name
@@ -193,7 +189,6 @@ class FSEvent(object):
 def parse_audit_line(line):
     """
     Parsing one current line from auditd log. Also add and edit new FSEvents
-
     :param line: current line for parsing
     :return: return -1 if error while parsing
     """
@@ -212,7 +207,6 @@ def parse_audit_line(line):
                 # add events
                 event = FSEvent(type_and_id.groups()[1])
                 events_dict[type_and_id.groups()[1]] = event
-<<<<<<< a4b9a90fa959e8f7e81360e0d09219af5a45e063
                 syscall_num = re.search(r' syscall=([0-9]{1,5}) ', line)
                 if syscall_num:
                     event.type = EventType(syscall_num.groups()[0])
@@ -221,17 +215,6 @@ def parse_audit_line(line):
                     event.uid = user_id.groups()[0]
             elif type_and_id.groups()[0] in ("CWD", "PATH"):
                 logging.warning("In line\n"+line+"\n not expected CWD or PATH type")
-=======
-                syscall_num=re.search(r' syscall=([0-9]{1,4}) ', line)
-                if syscall_num.groups()[0] == 5:
-                    event.type = EventType("create")
-                elif syscall_num == 10:
-                    event.type = EventType("delete")
-                else:
-                    event.type = EventType("change")
-
-            if type_and_id.groups()[0] in [ "CWD" , "PATH" ]:
->>>>>>> Add new else in parse SYSCALL
                 return -1
         else:
             if type_and_id.groups()[0] == "SYSCALL":
@@ -265,7 +248,6 @@ def parse_audit_line(line):
 def parse_audit_lines(audit_lines, ptr_read_line):
     """
     Parse a few auditd log lines
-
     :param audit_lines: list of of few auditd lines
     :param ptr_read_line: a pointer in list audit_lines where to start parsing
     :return:
