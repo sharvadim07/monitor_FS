@@ -11,7 +11,7 @@ import sys
 p = optparse.OptionParser()
 p.add_option("-i", action="store", type="string", dest="infile", default="/var/log/audit/audit.log")
 opts, args = p.parse_args()
-logging.basicConfig(filename="auditdreader.log", level=logging.INFO)
+logging.basicConfig(filename="auditdreader.log", level=logging.DEBUG)
 
 class ReaderProcess(multiprocessing.Process):
     """
@@ -166,13 +166,22 @@ class FSEvent(object):
         if isinstance(uid, str):
             self.__uid = uid
             # TODO read result id util
-            id_util_string = subprocess.check_output(['id', uid])
-            if id_util_string != -1:
-                # uid = 1000(student)
-                # TODO: not work!
-                user_id_str = re.search(r'uid=[0-9]+[(]?(\w+)[)]?',id_util_string)
-                if user_id_str:
-                    self.__uid_str = user_id_str.groups()[0]
+            try:
+                id_util_string = str(subprocess.check_output(['id', uid]))
+                if id_util_string:
+                    # uid = 1000(student)
+                    # TODO: not work!
+                    #logging.debug(id_util_string)
+                    user_id_str = re.search(r'.*uid=[0-9]+[(]?(\w+)[)]?', id_util_string)
+                    if user_id_str:
+                        self.__uid_str = user_id_str.groups()[0]
+                    else:
+                        logging.warning(self.id + "not set uid_str")
+
+            except TypeError as e:
+                logging.error("Error in conversion uid to uid_str"+e)
+                raise e
+
         else:
             logging.error("Incorrect type for uid attribute!")
             raise TypeError
@@ -210,9 +219,13 @@ def parse_audit_line(line):
                 syscall_num = re.search(r' syscall=([0-9]{1,5}) ', line)
                 if syscall_num:
                     event.type = EventType(syscall_num.groups()[0])
+                else:
+                    logging.warning(event.id + "not set type")
                 user_id = re.search(r' uid=(\w+) ',line)
                 if user_id:
                     event.uid = user_id.groups()[0]
+                else:
+                    logging.warning(event.id + "not set uid")
             elif type_and_id.groups()[0] in ("CWD", "PATH"):
                 logging.warning("In line\n"+line+"\n not expected CWD or PATH type")
                 return -1
@@ -225,12 +238,16 @@ def parse_audit_line(line):
                 cwd = re.search(r' cwd=["]?([^"]+)["]?', line)
                 if cwd:
                     event.dir_path = cwd.groups()[0]
+                else:
+                    logging.warning(event.id+"not set cwd path")
             elif type_and_id.groups()[0] == "PATH":
                 # parsing PATH line
                 if event.dir_path:
                     file_name = re.search(r' item=[0-9]{1,3} name=["]?([^"]+)["]? ', line)
                     if file_name:
                         event.file_name = file_name.groups()[0]
+                    else:
+                        logging.warning(event.id + "not set path or filename")
                     name_type = re.search(r' nametype=(\w+) ',line)
                     if name_type:
                         if name_type.groups()[0] == "CREATE":
@@ -240,9 +257,14 @@ def parse_audit_line(line):
                         #elif name_type.groups()[0] == "NORMAL":
                         else:
                             event.type.set_change()
+                    else:
+                        logging.warning(event.id + "not set type in PATH line")
                 else:
                     dir_path = re.search(r' item=[0-9]{1,3} name=["]?(\w+)["]? ', line)
-                    event.dir_path = dir_path.groups()[0]
+                    if dir_path:
+                        event.dir_path = dir_path.groups()[0]
+                    else:
+                        logging.warning(event.id + "not set path")
 
 
 def parse_audit_lines(audit_lines, ptr_read_line):
