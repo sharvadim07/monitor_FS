@@ -127,6 +127,10 @@ class FSEvent(object):
         return self.__uid
 
     @property
+    def uid_str(self):
+        return self.__uid_str
+
+    @property
     def type(self):
         return self.__type
 
@@ -174,16 +178,23 @@ class FSEvent(object):
                     #logging.debug(id_util_string)
                     user_id_str = re.search(r'.*uid=[0-9]+[(]?(\w+)[)]?', id_util_string)
                     if user_id_str:
-                        self.__uid_str = user_id_str.groups()[0]
+                        self.uid_str = user_id_str.groups()[0]
                     else:
                         logging.warning(self.id + "not set uid_str")
-
             except TypeError as e:
                 logging.error("Error in conversion uid to uid_str"+e)
                 raise e
 
         else:
             logging.error("Incorrect type for uid attribute!")
+            raise TypeError
+
+    @uid_str.setter
+    def uid_str(self, uid_str):
+        if isinstance(uid_str, str):
+            self.__uid_str = uid_str
+        else:
+            logging.warning("Incorrect type for uid_str attribute!")
             raise TypeError
 
     @type.setter
@@ -209,11 +220,12 @@ def parse_audit_line(line):
         event = events_dict.get(type_and_id.groups()[1])
         if not event:
             if type_and_id.groups()[0] == "SYSCALL":
-                num_items = re.search(r' items=([0-9]{1,4}) ', line)
+                num_items = re.search(r' items=([0-9]{1,5}) ', line)
                 if num_items and num_items.groups()[0] == "0":
                     #logging.debug("In line\n" + line + "\n SYSCALL not for files or directory. Items = 0")
                     return -2
                 # add events
+                logging.debug("Add syscall " + type_and_id.groups()[1] + " to events dictionary")
                 event = FSEvent(type_and_id.groups()[1])
                 events_dict[type_and_id.groups()[1]] = event
                 syscall_num = re.search(r' syscall=([0-9]{1,5}) ', line)
