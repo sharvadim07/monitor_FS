@@ -30,7 +30,7 @@ class ReaderProcess(multiprocessing.Process):
 
     def run(self):
         try:
-            audit_file = open(self.auditd_name_file, 'r');
+            audit_file = open(self.auditd_name_file, 'r')
             audit_lines = audit_file.readlines()
             self.output_q.put(audit_lines)
             self.output_q.join()
@@ -64,6 +64,9 @@ class EventType(object):
     def set_delete(self):
         self.__type = "delete"
 
+    def set_rename(self):
+        self.__type = "rename"
+
     @property
     def type(self):
         return self.__type
@@ -74,15 +77,18 @@ class EventType(object):
             self.__type = type
         elif type in ("5","8","9","39"):
             self.set_create()
-        elif type in ("10","40"):
+        elif type in ("10","40","301"):
             self.set_delete()
+        elif type in ("38"):
+            self.set_rename()
         else:
             logging.warning("Set default type - change.")
             self.set_change()  # default
 
 
 class FSEvent(object):
-    """File System Event
+    """
+    File System Event
     variables:
     1 - number of file system events
     properties:
@@ -119,8 +125,16 @@ class FSEvent(object):
         return self.__file_name
 
     @property
+    def file_inode(self):
+        return self.__file_inode
+
+    @property
     def dir_path(self):
         return self.__dir_path
+
+    @property
+    def dir_inode(self):
+        return self.__dir_inode
 
     @property
     def uid(self):
@@ -133,6 +147,15 @@ class FSEvent(object):
     @property
     def type(self):
         return self.__type
+
+    # PThis property for correct parsing all syscall items
+    @property
+    def cur_items(self):
+        return self.__cur_items
+
+    @property
+    def ad_event(self):
+        return self.__ad_event
 
     # @property
     # def time(self):
@@ -157,6 +180,14 @@ class FSEvent(object):
             logging.error("Incorrect type for file_name attribute!")
             raise TypeError
 
+    @file_inode.setter
+    def file_inode(self, file_inode):
+        if isinstance(file_inode, int):
+            self.__file_inode = file_inode
+        else:
+            logging.error("Incorrect type for file_inode attribute!")
+            raise TypeError
+
     @dir_path.setter
     def dir_path(self, dir_path):
         if isinstance(dir_path, str):
@@ -165,24 +196,30 @@ class FSEvent(object):
             logging.error("Incorrect type for dir_path attribute!")
             raise TypeError
 
+    @dir_inode.setter
+    def dir_inode(self, dir_inode):
+        if isinstance(dir_inode, int):
+            self.__dir_inode = dir_inode
+        else:
+            logging.error("Incorrect type for dir_inode attribute!")
+            raise TypeError
+
     @uid.setter
     def uid(self, uid):
-        if isinstance(uid, str):
-            self.__uid = uid
-            # TODO read result id util
+        if isinstance(uid, int):
+            self.__uid = int(uid)
+            # Read result id util
             try:
-                id_util_string = str(subprocess.check_output(['id', uid]))
+                id_util_string = str(subprocess.check_output(['id', str(uid)]))
                 if id_util_string:
                     # uid = 1000(student)
-                    # TODO: not work!
-                    #logging.debug(id_util_string)
                     user_id_str = re.search(r'.*uid=[0-9]+[(]?(\w+)[)]?', id_util_string)
                     if user_id_str:
                         self.uid_str = user_id_str.groups()[0]
                     else:
                         logging.warning(self.id + "not set uid_str")
             except TypeError as e:
-                logging.error("Error in conversion uid to uid_str"+e)
+                logging.error("Error in conversion uid to uid_str")
                 raise e
 
         else:
@@ -205,8 +242,104 @@ class FSEvent(object):
             logging.warning("Incorrect type for type attribute!")
             raise TypeError
 
+    @cur_items.setter
+    def cur_items(self, cur_items):
+        if isinstance(cur_items, int):
+            self.__cur_items = cur_items
+        else:
+            logging.warning("Incorrect type for cur_items attribute!")
+            raise TypeError
+
+    @ad_event.setter
+    def ad_event(self, ad_event):
+        if isinstance(ad_event, FSEvent):
+            self.__ad_event = ad_event
+        else:
+            logging.warning("Incorrect type for ad_event attribute!")
+            raise TypeError
+
+    def set_dir_path_and_inode (self, name, inode):
+        if name[0] == '.':
+            self.dir_path += name[1:]
+        else:
+            self.dir_path = name
+        self.dir_inode = int(inode)
+
+    def set_file_name_and_inode (self, name, inode):
+        if name[0] == '.':
+            self.file_name += name[1:]
+        else:
+            self.file_name = name
+        self.file_inode = int(inode)
+
+    def set_nametype(self, name_type):
+        # Set event type
+        if name_type == "CREATE":
+            self.type.set_create()
+        elif name_type == "DELETE":
+            self.type.set_delete()
+        # elif name_type.groups()[0] == "NORMAL":
+        else:
+            self.type.set_change()
+
+    def parse_path_line(self, line, move_flag = False):
+        # Set file name or directory name
+        path_line = re.search(r' item=([0-9]{1,3}).*name=["]?([^"]+)["]?.*inode=(\w+).*nametype=(\w+)', line)
+        #path_line = re.search(r' item=([0-9]{1,3}).*name=([^"]+).*inode=(\w+).*nametype=(\w+)', line)
+        if path_line:
+            if not move_flag:
+                if  int(path_line.groups()[0]) == 0:  # parent directory path (first item in syscall)
+                    self.set_dir_path_and_inode(path_line.groups()[1], path_line.groups()[2])
+                else:  # file path
+                    self.set_file_name_and_inode(path_line.groups()[1], path_line.groups()[2])
+                    self.set_nametype(path_line.groups()[3])
+            else:
+                if int(path_line.groups()[0]) == 0:
+                    self.set_dir_path_and_inode(path_line.groups()[1], path_line.groups()[2])
+                elif int(path_line.groups()[0]) == 1:
+                    self.ad_event = FSEvent(self.id + '.1')
+                    self.ad_event.ad_event = self
+                    self.ad_event.set_dir_path_and_inode(path_line.groups()[1], path_line.groups()[2])
+                elif int(path_line.groups()[0]) == self.cur_items-2:
+                    self.set_file_name_and_inode(path_line.groups()[1], path_line.groups()[2])
+                    self.set_nametype(path_line.groups()[3])
+                elif int(path_line.groups()[0]) == self.cur_items-1:
+                    self.ad_event.set_file_name_and_inode(path_line.groups()[1], path_line.groups()[2])
+                    self.ad_event.set_nametype(path_line.groups()[3])
+                    self.ad_event.type.set_create()
+                    self.ad_event.type.set_delete()
+        else:
+            logging.warning(self.id + "not set path or filename")
+
+    def parse_syscall_num(self, line):
+        # Set event type
+        syscall_num = re.search(r' syscall=([0-9]{1,5}) ', line)
+        if syscall_num:
+            self.type = EventType(syscall_num.groups()[0])
+        else:
+            logging.warning(self.id + "not set type")
+
+    def parse_uid(self,line):
+        # Set user id
+        user_id = re.search(r' uid=(\w+) ', line)
+        if user_id:
+            self.uid = int(user_id.groups()[0])
+        else:
+            logging.warning(self.id + "not set uid")
+
+    def parse_cwd(self, line):
+        # Set event directory path
+        cwd = re.search(r' cwd=["]?([^"]+)["]?', line)
+        if cwd:
+            self.dir_path = cwd.groups()[0]
+        else:
+            logging.warning(self.id + "not set cwd path")
+
+
+
 
 def parse_audit_line(line):
+
     """
     Parsing one current line from auditd log. Also add and edit new FSEvents
     :param line: current line for parsing
@@ -215,68 +348,68 @@ def parse_audit_line(line):
     # maybe this dict should be as parameter
     global events_dict
     # All lines in auditd log consist strings of this REGEXP
-    type_and_id = re.search(r'type=(\w+).+audit[(]?([0-9.:]+)[:]?', line)
-    if type_and_id and type_and_id.groups()[0] in ("SYSCALL", "CWD", "PATH"):
-        event = events_dict.get(type_and_id.groups()[1])
-        if not event:
-            if type_and_id.groups()[0] == "SYSCALL":
-                num_items = re.search(r' items=([0-9]{1,5}) ', line)
-                if num_items and num_items.groups()[0] == "0":
-                    #logging.debug("In line\n" + line + "\n SYSCALL not for files or directory. Items = 0")
-                    return -2
-                # add events
-                logging.debug("Add syscall " + type_and_id.groups()[1] + " to events dictionary")
-                event = FSEvent(type_and_id.groups()[1])
-                events_dict[type_and_id.groups()[1]] = event
-                syscall_num = re.search(r' syscall=([0-9]{1,5}) ', line)
-                if syscall_num:
-                    event.type = EventType(syscall_num.groups()[0])
-                else:
-                    logging.warning(event.id + "not set type")
-                user_id = re.search(r' uid=(\w+) ',line)
-                if user_id:
-                    event.uid = user_id.groups()[0]
-                else:
-                    logging.warning(event.id + "not set uid")
-            elif type_and_id.groups()[0] in ("CWD", "PATH"):
-                logging.warning("In line\n"+line+"\n not expected CWD or PATH type")
-                return -1
-        else:
-            if type_and_id.groups()[0] == "SYSCALL":
-                logging.warning("In line\n" + line + "\n not expected SYSCALL type")
-                return -1
-            elif type_and_id.groups()[0] == "CWD":
-                # parsing CWD line
-                cwd = re.search(r' cwd=["]?([^"]+)["]?', line)
-                if cwd:
-                    event.dir_path = cwd.groups()[0]
-                else:
-                    logging.warning(event.id+"not set cwd path")
-            elif type_and_id.groups()[0] == "PATH":
-                # parsing PATH line
-                if event.dir_path:
-                    file_name = re.search(r' item=[0-9]{1,3} name=["]?([^"]+)["]? ', line)
-                    if file_name:
-                        event.file_name = file_name.groups()[0]
+    try:
+        type_and_id = re.search(r'type=(\w+).+audit[(]?([0-9.:]+)[:]?', line)
+        if type_and_id and type_and_id.groups()[0] in ("SYSCALL", "CWD", "PATH"):
+            event = events_dict.get(type_and_id.groups()[1])
+            if not event: # If event is not exist then create it
+                if type_and_id.groups()[0] == "SYSCALL": # parsing SYSCALL line
+                    num_items = re.search(r' items=([0-9]{1,5}) ', line)
+                    if num_items and num_items.groups()[0] != "0":
+                        # add events
+                        logging.debug("Add syscall " + type_and_id.groups()[1] + " to events dictionary")
+                        event = FSEvent(type_and_id.groups()[1])
+                        events_dict[type_and_id.groups()[1]] = event
+                        # Set num items
+                        event.cur_items=int(num_items.groups()[0])
+                        # Set event type
+                        event.parse_syscall_num(line)
+                        # Set user id
+                        event.parse_uid(line)
                     else:
-                        logging.warning(event.id + "not set path or filename")
-                    name_type = re.search(r' nametype=(\w+) ',line)
-                    if name_type:
-                        if name_type.groups()[0] == "CREATE":
-                            event.type.set_create()
-                        elif name_type.groups()[0] == "DELETE":
-                            event.type.set_delete()
-                        #elif name_type.groups()[0] == "NORMAL":
+                        #logging.debug("In line\n" + line + "\n SYSCALL not for files or directory. Items = 0")
+                        return -2
+                elif type_and_id.groups()[0] in ("CWD", "PATH"):
+                    logging.warning("In line\n"+line+"\n not expected CWD or PATH type")
+                    return -1
+            else: # If event is exist then modify it
+                if type_and_id.groups()[0] == "SYSCALL":
+                    logging.warning("In line\n" + line + "\n not expected SYSCALL type")
+                    return -1
+                elif type_and_id.groups()[0] == "CWD":  # parsing CWD line
+                    # Set event directory path
+                    event.parse_cwd(line)
+                elif type_and_id.groups()[0] == "PATH":   # parsing PATH line
+                    if event.dir_path:
+                        if event.type == "rename":
+                            # Create additional event for rename or move syscalls
+                            event.parse_path_line(line, True)
+                            events_dict[event.ad_event.id]
                         else:
-                            event.type.set_change()
+                            # Set file name or directory name
+                            event.parse_path_line(line)
                     else:
-                        logging.warning(event.id + "not set type in PATH line")
-                else:
-                    dir_path = re.search(r' item=[0-9]{1,3} name=["]?(\w+)["]? ', line)
-                    if dir_path:
-                        event.dir_path = dir_path.groups()[0]
-                    else:
-                        logging.warning(event.id + "not set path")
+                        logging.warning("CWD not set, path may be incorrect!")
+                        return -1
+
+
+
+                    # else:
+                    #     # Set directory path
+                    #     dir_path = re.search(r' item=[0-9]{1,3} name=["]?(\w+)["]? ', line)
+                    #     if dir_path:
+                    #         event.dir_path = dir_path.groups()[0]
+                    #     else:
+                    #         logging.warning(event.id + "not set path")
+                    #     # Set directory inode
+                    #     dir_inode = re.search(r' inode=(\w+) ', line)
+                    #     if dir_inode:
+                    #         event.dir_inode = int(dir_inode.groups()[0])
+                    #     else:
+                    #         logging.warning(event.id + "not set directory inode")
+    except:
+        logging.error("Error while parsing audit line")
+        return -1
 
 
 def parse_audit_lines(audit_lines, ptr_read_line):
