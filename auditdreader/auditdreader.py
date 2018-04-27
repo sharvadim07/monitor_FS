@@ -73,7 +73,7 @@ class EventType(object):
 
     @type.setter
     def type(self, type):
-        if type in ("create", "change", "delete"):
+        if type in ("create", "change", "delete", "rename"):
             self.__type = type
         elif type in ("5","8","9","39"):
             self.set_create()
@@ -145,7 +145,7 @@ class FSEvent(object):
         return self.__uid_str
 
     @property
-    def type(self):
+    def evtype(self):
         return self.__type
 
     # PThis property for correct parsing all syscall items
@@ -234,8 +234,8 @@ class FSEvent(object):
             logging.warning("Incorrect type for uid_str attribute!")
             raise TypeError
 
-    @type.setter
-    def type(self, type):
+    @evtype.setter
+    def evtype(self, type):
         if isinstance(type, EventType):
             self.__type = type
         else:
@@ -258,6 +258,7 @@ class FSEvent(object):
             logging.warning("Incorrect type for ad_event attribute!")
             raise TypeError
 
+
     def set_dir_path_and_inode (self, name, inode):
         if name[0] == '.':
             self.dir_path += name[1:]
@@ -275,12 +276,12 @@ class FSEvent(object):
     def set_nametype(self, name_type):
         # Set event type
         if name_type == "CREATE":
-            self.type.set_create()
+            self.evtype.set_create()
         elif name_type == "DELETE":
-            self.type.set_delete()
+            self.evtype.set_delete()
         # elif name_type.groups()[0] == "NORMAL":
         else:
-            self.type.set_change()
+            self.evtype.set_change()
 
     def parse_path_line(self, line, move_flag = False):
         # Set file name or directory name
@@ -294,11 +295,13 @@ class FSEvent(object):
                     self.set_file_name_and_inode(path_line.groups()[1], path_line.groups()[2])
                     self.set_nametype(path_line.groups()[3])
             else:
+                # TODO : fix it
                 if int(path_line.groups()[0]) == 0:
                     self.set_dir_path_and_inode(path_line.groups()[1], path_line.groups()[2])
-                elif int(path_line.groups()[0]) == 1:
                     self.ad_event = FSEvent(self.id + '.1')
                     self.ad_event.ad_event = self
+                    return self.ad_event
+                elif int(path_line.groups()[0]) == 1:
                     self.ad_event.set_dir_path_and_inode(path_line.groups()[1], path_line.groups()[2])
                 elif int(path_line.groups()[0]) == self.cur_items-2:
                     self.set_file_name_and_inode(path_line.groups()[1], path_line.groups()[2])
@@ -306,8 +309,8 @@ class FSEvent(object):
                 elif int(path_line.groups()[0]) == self.cur_items-1:
                     self.ad_event.set_file_name_and_inode(path_line.groups()[1], path_line.groups()[2])
                     self.ad_event.set_nametype(path_line.groups()[3])
-                    self.ad_event.type.set_create()
-                    self.ad_event.type.set_delete()
+                    self.ad_event.evtype.set_create()
+                    self.evtype.set_delete()
         else:
             logging.warning(self.id + "not set path or filename")
 
@@ -315,7 +318,7 @@ class FSEvent(object):
         # Set event type
         syscall_num = re.search(r' syscall=([0-9]{1,5}) ', line)
         if syscall_num:
-            self.type = EventType(syscall_num.groups()[0])
+            self.evtype = EventType(syscall_num.groups()[0])
         else:
             logging.warning(self.id + "not set type")
 
@@ -381,32 +384,16 @@ def parse_audit_line(line):
                     event.parse_cwd(line)
                 elif type_and_id.groups()[0] == "PATH":   # parsing PATH line
                     if event.dir_path:
-                        if event.type == "rename":
+                        if event.evtype.type == "rename":
                             # Create additional event for rename or move syscalls
-                            event.parse_path_line(line, True)
-                            events_dict[event.ad_event.id]
+                            if event.parse_path_line(line, True):
+                                events_dict[event.ad_event.id] = event.ad_event
                         else:
                             # Set file name or directory name
                             event.parse_path_line(line)
                     else:
                         logging.warning("CWD not set, path may be incorrect!")
                         return -1
-
-
-
-                    # else:
-                    #     # Set directory path
-                    #     dir_path = re.search(r' item=[0-9]{1,3} name=["]?(\w+)["]? ', line)
-                    #     if dir_path:
-                    #         event.dir_path = dir_path.groups()[0]
-                    #     else:
-                    #         logging.warning(event.id + "not set path")
-                    #     # Set directory inode
-                    #     dir_inode = re.search(r' inode=(\w+) ', line)
-                    #     if dir_inode:
-                    #         event.dir_inode = int(dir_inode.groups()[0])
-                    #     else:
-                    #         logging.warning(event.id + "not set directory inode")
     except:
         logging.error("Error while parsing audit line")
         return -1
