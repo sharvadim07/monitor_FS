@@ -2,7 +2,7 @@ import logging
 import optparse
 import time
 import multiprocessing
-import auditdreader
+import auditd_reader
 
 # parse programm options
 p = optparse.OptionParser()
@@ -20,7 +20,7 @@ auditd_name_file = opts.infile
 
 queue_fs_events = multiprocessing.Queue()
 # create reader process
-proc_au_reader = auditdreader.AuditReaderProcess(auditd_name_file, queue_fs_events)
+proc_au_reader = auditd_reader.AuditReaderProcess(auditd_name_file, queue_fs_events)
 proc_au_reader.daemon = True
 
 
