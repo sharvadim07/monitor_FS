@@ -22,6 +22,7 @@ class FSEvent(object):
     def __init__(self, id):
         self.__id = id
         self.__type = EventType()
+        self.__cur_item = 0
         # self.__file_name = file_name
         # self.__dir_path = dir_path
         # self.__uid = uid
@@ -65,10 +66,14 @@ class FSEvent(object):
     def evtype(self):
         return self.__type
 
-    # PThis property for correct parsing all syscall items
+    # This property for correct parsing all syscall items
     @property
-    def cur_items(self):
-        return self.__cur_items
+    def items(self):
+        return self.__items
+
+    @property
+    def cur_item(self):
+        return self.__cur_item
 
     @property
     def ad_event(self):
@@ -159,13 +164,24 @@ class FSEvent(object):
             logging.warning("Incorrect type for type attribute!")
             raise TypeError
 
-    @cur_items.setter
-    def cur_items(self, cur_items):
-        if isinstance(cur_items, int):
-            self.__cur_items = cur_items
+    @items.setter
+    def items(self, items):
+        if isinstance(items, int):
+            self.__items = items
+            if self.__items >= 4:
+                self.evtype.set_rename()
         else:
             logging.warning("Incorrect type for cur_items attribute!")
             raise TypeError
+
+    @cur_item.setter
+    def cur_item(self, cur_item):
+        if isinstance(cur_item, int):
+            self.__cur_item = cur_item
+        else:
+            logging.warning("Incorrect type for cur_items attribute!")
+            raise TypeError
+
 
     @ad_event.setter
     def ad_event(self, ad_event):
@@ -203,27 +219,33 @@ class FSEvent(object):
     def parse_path_line(self, line, move_flag = False):
         # Set file name or directory name
         path_line = re.search(r' item=([0-9]{1,3}).*name=["]?([^"]+)["]?.*inode=(\w+).*nametype=(\w+)', line)
-        #path_line = re.search(r' item=([0-9]{1,3}).*name=([^"]+).*inode=(\w+).*nametype=(\w+)', line)
         if path_line:
+            # Items counter. Event info is full then cur_item eq items
+            self.cur_item += 1;
             if not move_flag:
-                if  int(path_line.groups()[0]) == 0:  # parent directory path (first item in syscall)
-                    self.set_dir_path_and_inode(path_line.groups()[1], path_line.groups()[2])
-                else:  # file path
+                if self.items != 1:
+                    if  int(path_line.groups()[0]) == 0:  # parent directory path (first item in syscall)
+                        self.set_dir_path_and_inode(path_line.groups()[1], path_line.groups()[2])
+                    else:  # file path
+                        self.set_file_name_and_inode(path_line.groups()[1], path_line.groups()[2])
+                        self.set_nametype(path_line.groups()[3])
+                else: # only file path
                     self.set_file_name_and_inode(path_line.groups()[1], path_line.groups()[2])
                     self.set_nametype(path_line.groups()[3])
             else:
-                # TODO : fix it
+                # Parse PATH lines in move or rename SYSCALLs
                 if int(path_line.groups()[0]) == 0:
                     self.set_dir_path_and_inode(path_line.groups()[1], path_line.groups()[2])
                     self.ad_event = FSEvent(self.id + '.1')
                     self.ad_event.ad_event = self
+                    self.ad_event.uid = self.uid
                     return self.ad_event
                 elif int(path_line.groups()[0]) == 1:
                     self.ad_event.set_dir_path_and_inode(path_line.groups()[1], path_line.groups()[2])
-                elif int(path_line.groups()[0]) == self.cur_items-2:
+                elif int(path_line.groups()[0]) == self.items-2:
                     self.set_file_name_and_inode(path_line.groups()[1], path_line.groups()[2])
                     #self.set_nametype(path_line.groups()[3])
-                elif int(path_line.groups()[0]) == self.cur_items-1:
+                elif int(path_line.groups()[0]) == self.items-1:
                     self.ad_event.set_file_name_and_inode(path_line.groups()[1], path_line.groups()[2])
                     #self.ad_event.set_nametype(path_line.groups()[3])
                     self.ad_event.evtype.set_create()
@@ -286,11 +308,11 @@ class EventType(object):
     def type(self, type):
         if type in ("create", "change", "delete", "rename"):
             self.__type = type
-        elif type in ("5","8","9","39"):
+        elif type in ("5","8","9","39","257"):
             self.set_create()
         elif type in ("10","40","301"):
             self.set_delete()
-        elif type in ("38"):
+        elif type in ("38","82"):
             self.set_rename()
         else:
             logging.warning("Set default type - change.")
