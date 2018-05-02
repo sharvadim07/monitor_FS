@@ -315,7 +315,7 @@ class EventType(object):
         elif type in ("38","82"):
             self.set_rename()
         else:
-            logging.warning("Set default type - change.")
+            logging.debug("Set default type - change.")
             self.set_change()  # default
 
 

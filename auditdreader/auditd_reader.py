@@ -75,9 +75,9 @@ class AuditReaderProcess(multiprocessing.Process):
                 event = self.events_dict.get(type_and_id.groups()[1])
                 if not event:  # If event is not exist then create it
                     if type_and_id.groups()[0] == "SYSCALL":  # parsing SYSCALL line
-                        num_items = re.search(r' items=([0-9]{1,5}) ', line)
-                        # TODO : add parsing success=
-                        if num_items and num_items.groups()[0] != "0":
+                        success_and_num_items = re.search(r' success=(\w+).+items=([0-9]{1,5}) ', line)
+                        if success_and_num_items and success_and_num_items.groups()[0] == "yes" \
+                                and success_and_num_items.groups()[1] != "0":
                             # add events
                             logging.debug("Add syscall " + type_and_id.groups()[1] + " to events dictionary")
                             event = fs_event.FSEvent(type_and_id.groups()[1])
@@ -87,7 +87,7 @@ class AuditReaderProcess(multiprocessing.Process):
                             # Set user id
                             event.parse_uid(line)
                             # Set num items
-                            event.items = int(num_items.groups()[0])
+                            event.items = int(success_and_num_items.groups()[1])
                         else:
                             # logging.debug("In line\n" + line + "\n SYSCALL not for files or directory. Items = 0")
                             return -2

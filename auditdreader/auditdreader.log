@@ -85,3 +85,64 @@ DEBUG:root:Add syscall 1525255767.934:156 to events dictionary
 WARNING:root:Set default type - change.
 DEBUG:root:Add syscall 1525255767.934:157 to events dictionary
 WARNING:root:Set default type - change.
+ERROR:root:Error while parsing audit line
+WARNING:root:In line
+type=CWD msg=audit(1525254064.161:145): cwd="/home/vadim/test_auditd_dir"
+
+ not expected CWD or PATH type
+WARNING:root:In line
+type=PATH msg=audit(1525254064.161:145): item=0 name="/home/vadim/test_auditd_dir/" inode=159219 dev=08:01 mode=040755 ouid=1000 ogid=1000 rdev=00:00 nametype=PARENT cap_fp=0000000000000000 cap_fi=0000000000000000 cap_fe=0 cap_fver=0
+
+ not expected CWD or PATH type
+WARNING:root:In line
+type=PATH msg=audit(1525254064.161:145): item=1 name="/home/vadim/test_auditd_dir/222" inode=132870 dev=08:01 mode=040755 ouid=0 ogid=0 rdev=00:00 nametype=DELETE cap_fp=0000000000000000 cap_fi=0000000000000000 cap_fe=0 cap_fver=0
+
+ not expected CWD or PATH type
+DEBUG:root:Add syscall 1525254626.555:147 to events dictionary
+WARNING:root:Set default type - change.
+DEBUG:root:Add syscall 1525254064.161:145 to events dictionary
+DEBUG:root:Set default type - change.
+DEBUG:root:Add syscall 1525254626.555:147 to events dictionary
+DEBUG:root:Set default type - change.
+DEBUG:root:Add syscall 1525254844.150:149 to events dictionary
+DEBUG:root:Add syscall 1525254906.261:150 to events dictionary
+WARNING:root:In line
+type=CWD msg=audit(1525255767.930:153): cwd="/home/vadim"
+
+ not expected CWD or PATH type
+WARNING:root:In line
+type=PATH msg=audit(1525255767.930:153): item=0 name="/home/vadim/test_auditd_dir/" inode=159219 dev=08:01 mode=040755 ouid=1000 ogid=1000 rdev=00:00 nametype=PARENT cap_fp=0000000000000000 cap_fi=0000000000000000 cap_fe=0 cap_fver=0
+
+ not expected CWD or PATH type
+WARNING:root:In line
+type=PATH msg=audit(1525255767.930:153): item=1 name="/home/vadim/test_auditd_dir/123" inode=682781 dev=08:01 mode=040755 ouid=1000 ogid=1000 rdev=00:00 nametype=DELETE cap_fp=0000000000000000 cap_fi=0000000000000000 cap_fe=0 cap_fver=0
+
+ not expected CWD or PATH type
+WARNING:root:In line
+type=CWD msg=audit(1525255767.930:154): cwd="/home/vadim"
+
+ not expected CWD or PATH type
+WARNING:root:In line
+type=PATH msg=audit(1525255767.930:154): item=0 name="/home/vadim/test_auditd_dir/" inode=159219 dev=08:01 mode=040755 ouid=1000 ogid=1000 rdev=00:00 nametype=PARENT cap_fp=0000000000000000 cap_fi=0000000000000000 cap_fe=0 cap_fver=0
+
+ not expected CWD or PATH type
+WARNING:root:In line
+type=PATH msg=audit(1525255767.930:154): item=1 name="/home/vadim/test_auditd_dir/123" inode=682781 dev=08:01 mode=040755 ouid=1000 ogid=1000 rdev=00:00 nametype=DELETE cap_fp=0000000000000000 cap_fi=0000000000000000 cap_fe=0 cap_fver=0
+
+ not expected CWD or PATH type
+DEBUG:root:Add syscall 1525255767.930:155 to events dictionary
+DEBUG:root:Set default type - change.
+WARNING:root:In line
+type=CWD msg=audit(1525255767.934:156): cwd="/home/vadim"
+
+ not expected CWD or PATH type
+WARNING:root:In line
+type=PATH msg=audit(1525255767.934:156): item=0 name="/home/vadim/test_auditd_dir/" inode=159219 dev=08:01 mode=040755 ouid=1000 ogid=1000 rdev=00:00 nametype=PARENT cap_fp=0000000000000000 cap_fi=0000000000000000 cap_fe=0 cap_fver=0
+
+ not expected CWD or PATH type
+WARNING:root:In line
+type=PATH msg=audit(1525255767.934:156): item=1 name="/home/vadim/test_auditd_dir/123" inode=682781 dev=08:01 mode=040755 ouid=1000 ogid=1000 rdev=00:00 nametype=DELETE cap_fp=0000000000000000 cap_fi=0000000000000000 cap_fe=0 cap_fver=0
+
+ not expected CWD or PATH type
+DEBUG:root:Add syscall 1525255767.934:157 to events dictionary
+DEBUG:root:Set default type - change.
