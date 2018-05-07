@@ -3,6 +3,7 @@ import optparse
 import time
 import multiprocessing
 import auditd_reader
+import db
 
 # parse programm options
 p = optparse.OptionParser()
@@ -36,4 +37,13 @@ def worker (queue_fs_events):
             # TODO : Work with data base and scanning
 
 
-worker(queue_fs_events)
+#worker(queue_fs_events)
+
+def add_fs_event_to_db(event=None):
+    db.create_tables()
+    from datetime import date
+    user = db.User(name="student",uid=1000)
+    user.save()  # bob is now stored in the database
+    db.database.close()
+
+add_fs_event_to_db()
