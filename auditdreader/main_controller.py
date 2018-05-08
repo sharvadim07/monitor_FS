@@ -4,6 +4,8 @@ import time
 import multiprocessing
 import auditd_reader
 import db
+import os
+import general
 
 # parse programm options
 p = optparse.OptionParser()
@@ -37,13 +39,44 @@ def worker (queue_fs_events):
             # TODO : Work with data base and scanning
 
 
-#worker(queue_fs_events)
-
 def add_fs_event_to_db(event=None):
     db.create_tables()
-    from datetime import date
-    user = db.User(name="student",uid=1000)
-    user.save()  # bob is now stored in the database
-    db.database.close()
 
+    user, user_created = db.User.get_or_create(
+        uid = event.uid
+    )
+    # TODO : build this function
+    directory, directory_created = db.Directory.get_or_create(
+        path = event.dir_path,
+        inode = event.dir_inode
+    )
+    st = get_directory_info(event)
+    dir_owner, dir_owner_created = db.User.get_or_create(
+        uid = st.uid
+    )
+    if not dir_owner_created:
+        username = general.uid_to_usr_str(dir_owner.uid)
+        if username:
+            dir_owner.username = username
+        else:
+            logging.warning("Uid to username conflict!")
+    directory.owner = dir_owner
+    if directory_created:
+        directory.size =
+
+
+# This function takes the name of a file, and returns a
+# 10-member tuple with the following contents:
+#mode, ino, dev, nlink, uid, gid, size, atime, mtime, ctime
+def get_directory_info(event):
+    st = os.stat(event.dir_path)
+    if st.st_ino == event.dir_inode:
+        return st
+    else:
+        logging.warning("Dir path " + event.dir_path + " not match with inode "  + event.dir_inode)
+
+
+#worker(queue_fs_events)
 add_fs_event_to_db()
+
+db.database.close()

@@ -1,6 +1,6 @@
 import logging
 import re
-import subprocess
+import general
 
 class FSEvent(object):
     """
@@ -132,14 +132,11 @@ class FSEvent(object):
             self.__uid = int(uid)
             # Read result id util
             try:
-                id_util_string = str(subprocess.check_output(['id', str(uid)]))
-                if id_util_string:
-                    # uid = 1000(student)
-                    user_id_str = re.search(r'.*uid=[0-9]+[(]?(\w+)[)]?', id_util_string)
-                    if user_id_str:
-                        self.uid_str = user_id_str.groups()[0]
-                    else:
-                        logging.warning(self.id + "not set uid_str")
+                uid_str = general.uid_to_usr_str(uid)
+                if uid_str:
+                    self.uid_str = uid_str
+                else:
+                    logging.warning(self.id + "not set uid_str")
             except TypeError as e:
                 logging.error("Error in conversion uid to uid_str")
                 raise e
