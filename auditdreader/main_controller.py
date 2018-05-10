@@ -4,7 +4,6 @@ import time
 import multiprocessing
 import auditd_reader
 import db
-import os
 import general
 
 # parse programm options
@@ -39,41 +38,71 @@ def worker (queue_fs_events):
             # TODO : Work with data base and scanning
 
 
-def add_fs_event_to_db(event=None):
+def add_fs_event_to_db(event):
+    # TODO : Need add exception handler
     db.create_tables()
 
     user, user_created = db.User.get_or_create(
         uid = event.uid
     )
-    # TODO : build this function
-    directory, directory_created = db.Directory.get_or_create(
-        path = event.dir_path,
+    if not user_created:
+        user.username = event.uid_str
+
+
+    directory = db.Directory.get_or_none(
         inode = event.dir_inode
     )
-    st = get_directory_info(event)
-    dir_owner, dir_owner_created = db.User.get_or_create(
-        uid = st.uid
-    )
-    if not dir_owner_created:
-        username = general.uid_to_usr_str(dir_owner.uid)
-        if username:
-            dir_owner.username = username
-        else:
-            logging.warning("Uid to username conflict!")
-    directory.owner = dir_owner
-    if directory_created:
-        directory.size =
+    if not directory:
+            directory = db.Directory.create(inode = event.dir_inode)
+            # 5-member tuple with the following contents:
+            # uid, inode , isdir, size, date of modify
+            dir_info = general.get_file_info(event.dir_path)
+            if dir_info[1] != event.dir_inode:
+                logging.warning("Directory path " + dir_info[1] + \
+                                " is not match with dir inode " + event.file_inode)
+            dir_owner, dir_owner_created = db.User.get_or_create(
+                uid=dir_info[0]
+            )
+            directory.owner = dir_owner
+            name = general.name_from_path(event.dir_path)
+            if not name:
+                logging.warning("Directory name will not set, dir inode:" + event.dir_inode)
+                return -1
+            directory.name = name
+            # 5-member tuple with the following contents:
+            # uid, inode , isdir, size, date of modify
+            parent_info = general.get_file_info(general.parent_path_from_path(event.dir_path))
+            parent_directory = db.Directory.get_or_none(
+                inode = parent_info[1]
+            )
+            if parent_directory:
+                directory.parent = parent_directory
 
 
-# This function takes the name of a file, and returns a
-# 10-member tuple with the following contents:
-#mode, ino, dev, nlink, uid, gid, size, atime, mtime, ctime
-def get_directory_info(event):
-    st = os.stat(event.dir_path)
-    if st.st_ino == event.dir_inode:
-        return st
+    if event.evtype.type != "delete":
+        # 5-member tuple with the following contents:
+        # uid, inode , isdir, size, date of modify
+        info_of_file_or_dir = general.get_file_info(general.get_file_path(event))
+        if info_of_file_or_dir[1] != event.file_inode:
+            logging.warning("File path " + general.get_file_path(event) + \
+                            " is not match with file inode " + event.file_inode)
+        if not info_of_file_or_dir[2]: # If is a file
+            # TODO : add function for create a file
+          pass
+        else: # If is a directory
+            # TODO : add function for create a directory
     else:
-        logging.warning("Dir path " + event.dir_path + " not match with inode "  + event.dir_inode)
+        dir = db.Directory.get_or_none(
+            inode = event.file_inode
+        )
+        if dir:
+            dir.delete_instance()
+        else:
+            file = db.File.get_or_none(
+                inode =  event.file_inode
+            )
+            if file:
+                file.delete_instance()
 
 
 #worker(queue_fs_events)

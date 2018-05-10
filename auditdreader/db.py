@@ -21,23 +21,31 @@ class User(BaseModel):
 
 # the directory model
 class Directory(BaseModel):
-    owner = ForeignKeyField(User, backref='directories',null=True)
-    path = CharField(unique=True)
-    inode = IntegerField(unique=True)
-    parent_path = ForeignKeyField('self', backref='children')
+    owner = ForeignKeyField(User, backref = 'directories',null = True)
+    name = CharField()
+    inode = IntegerField(unique = True)
+    parent = ForeignKeyField('self', backref = 'children')
     size = BigIntegerField()
     time_update = DateTimeField(default=datetime.datetime.now)
 
+# the file model
+class File(BaseModel):
+    owner = ForeignKeyField(User, backref = 'directories',null = True)
+    name = CharField()
+    inode = IntegerField(unique = True)
+    parent_directory = ForeignKeyField(Directory, backref = 'children')
+    size = BigIntegerField(default = 0)
+    time_update = DateTimeField(default = datetime.datetime.now)
+
 # the file system event model
 class Event(BaseModel):
-    id = CharField(unique=True)
-    file_name = CharField()
-    file_inode = IntegerField()
-    directory = ForeignKeyField(Directory, backref='events')
-    user = ForeignKeyField(User, backref='events')
-    time = DateTimeField(default=datetime.datetime.now)
-    size_directory = BigIntegerField()
+    id = CharField(unique = True)
+    file = ForeignKeyField(File, backref = 'events')
+    directory = ForeignKeyField(Directory, backref = 'events')
+    user = ForeignKeyField(User, backref = 'events')
+    time = DateTimeField(default = datetime.datetime.now)
+    size = BigIntegerField()
 
 
 def create_tables():
-    psql_db.create_tables([User, Directory, Event])
+    psql_db.create_tables([User, File, Directory, Event])
