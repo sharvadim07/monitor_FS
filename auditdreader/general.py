@@ -32,10 +32,12 @@ def parent_path_from_path(path):
 
 # This function takes the name of a file, and returns a
 # 5-member tuple with the following contents:
-# uid, inode , isdir, size, date of modify
+# uid, inode , isdir, size, date of change
 def get_file_info(path):
+     # TODO : Add error if file not exist
     st = os.stat(path)
-    return (st.st_uid, st.st_ino, S_ISDIR(st.st_mode), st.st_size,  datetime.datetime.fromtimestamp(st.st_mtime))
+    return (st.st_uid, st.st_ino, S_ISDIR(st.st_mode), st.st_size,  datetime.datetime.fromtimestamp(st.st_ctime))
+
 
 def get_file_path(event):
     if event.file_name[0] == '/':

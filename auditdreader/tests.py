@@ -3,14 +3,21 @@ from stat import *
 import re
 
 #mode, ino, dev, nlink, uid, gid, size, atime, mtime, ctime
-st = os.stat("./test_file")
+def fun1():
+    st = os.stat("./tesadasdat_file")
+    print('fun1 end')
 
-#print(st.st_uid + ST_UID(st.st_uid) + S_ISDIR(st.st_mode) + ST_MTIME(st.st_mtime))
+def fun2():
+    print('fun2')
+    fun1()
+    print('fun2 end')
 
-def name_from_path(path):
-    str = re.match(r'(.*)[/]\w+$', path)
-    st = os.stat(str.groups()[0])
-    return  str.groups()[0]
+def fun3():
+    print('fun3')
+    fun2()
+    print('fun3 end')
 
-
-print(name_from_path("/home/vadim/testword"))
+try:
+    fun3()
+except FileNotFoundError as err:
+    print('Exception',err,' catched')
