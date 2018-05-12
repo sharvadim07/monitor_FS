@@ -30,10 +30,10 @@ class Directory(BaseModel):
 
 # the file model
 class File(BaseModel):
-    owner = ForeignKeyField(User, backref = 'directories',null = True)
+    owner = ForeignKeyField(User, backref = 'files',null = True)
     name = CharField()
     inode = IntegerField(unique = True)
-    parent_directory = ForeignKeyField(Directory, backref = 'children')
+    parent = ForeignKeyField(Directory, backref = 'children')
     size = BigIntegerField(default = 0)
     time_update = DateTimeField(default = datetime.datetime.now)
 
