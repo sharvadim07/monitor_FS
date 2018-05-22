@@ -3,7 +3,7 @@ import datetime
 
 # create a peewee database instance -- our models will use this database to
 # persist information
-psql_db = PostgresqlDatabase("auditreader_db", user="student")
+psql_db = PostgresqlDatabase("auditreader_db", user="root")
 psql_db.connect()
 
 # model definitions -- the standard "pattern" is to define a base model class
@@ -21,19 +21,19 @@ class User(BaseModel):
 
 # the directory model
 class Directory(BaseModel):
-    owner = ForeignKeyField(User, backref = 'directories',null = True)
-    name = CharField()
+    owner = ForeignKeyField(User, backref = 'directories', null = True)
+    name = CharField(null=True)
     inode = IntegerField(unique = True)
-    parent = ForeignKeyField('self', backref = 'children')
-    size = BigIntegerField()
+    parent = ForeignKeyField('self', backref = 'children', null=True)
+    size = BigIntegerField(default=0)
     time_update = DateTimeField(default=datetime.datetime.now)
 
 # the file model
 class File(BaseModel):
-    owner = ForeignKeyField(User, backref = 'files',null = True)
-    name = CharField()
+    owner = ForeignKeyField(User, backref = 'files', null = True)
+    name = CharField(null = True)
     inode = IntegerField(unique = True)
-    parent = ForeignKeyField(Directory, backref = 'children')
+    parent = ForeignKeyField(Directory, backref = 'children', null = True)
     size = BigIntegerField(default = 0)
     time_update = DateTimeField(default = datetime.datetime.now)
 
@@ -48,4 +48,6 @@ class Event(BaseModel):
 
 
 def create_tables():
+    # Drop the table and re-create it.
+    psql_db.drop_tables([User, File, Directory, Event])
     psql_db.create_tables([User, File, Directory, Event])

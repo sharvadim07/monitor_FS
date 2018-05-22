@@ -23,6 +23,9 @@ class FSEvent(object):
         self.__id = id
         self.__type = EventType()
         self.__cur_item = 0
+        self.__items = 0
+        self.__uid_str = ""
+        self.__ad_event = None
         # self.__file_name = file_name
         # self.__dir_path = dir_path
         # self.__uid = uid
@@ -136,7 +139,7 @@ class FSEvent(object):
                 if uid_str:
                     self.uid_str = uid_str
                 else:
-                    logging.warning(self.id + "not set uid_str")
+                    logging.warning(self.id, " not set uid_str")
             except TypeError as e:
                 logging.error("Error in conversion uid to uid_str")
                 raise e
@@ -272,7 +275,7 @@ class FSEvent(object):
         if cwd:
             self.dir_path = cwd.groups()[0]
         else:
-            logging.warning(self.id + "not set cwd path")
+            logging.warning(self.id, "not set cwd path")
 
 
 class EventType(object):

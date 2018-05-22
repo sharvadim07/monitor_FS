@@ -2,6 +2,7 @@ import multiprocessing
 import logging
 import fs_event
 import re
+import time
 
 class AuditReaderProcess(multiprocessing.Process):
     """
@@ -34,7 +35,7 @@ class AuditReaderProcess(multiprocessing.Process):
                 # Send new full of info events to controller
                 self.send_events_to_queue()
                 # clean readed lines
-                audit_lines = []
+                audit_lines.clear()
                 # while reader deamon working we add NEW lines to list audit_lines and parse its
                 while True:
                     if len(audit_lines) > 3: # buf size is 3
@@ -42,12 +43,14 @@ class AuditReaderProcess(multiprocessing.Process):
                         # Send new full of info events to controller
                         self.send_events_to_queue()
                         # Clear dictionary
-                        self.events_dict = dict()
-                        audit_lines = []
+                        self.events_dict.clear()
+                        audit_lines.clear()
                     else:
                         line = audit_file.readline()
                         if line:
                             audit_lines.append(line)
+                        else:
+                            time.sleep(3)
 
             else:
                 logging.error("Audit file is empty!")
@@ -59,7 +62,7 @@ class AuditReaderProcess(multiprocessing.Process):
     def send_events_to_queue(self):
         for ev in self.events_dict:
             if self.events_dict[ev].items == self.events_dict[ev].cur_item:
-                self.output_q.put(ev)
+                self.output_q.put(self.events_dict[ev])
 
     def parse_audit_line(self,line):
 

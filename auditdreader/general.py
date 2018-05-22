@@ -6,6 +6,7 @@ import datetime
 
 
 def uid_to_usr_str(uid):
+    # TODO: Add checking by /etc/passwd
     id_util_string = str(subprocess.check_output(['id', str(uid)]))
     if id_util_string:
         # uid = 1000(student)
@@ -16,7 +17,7 @@ def uid_to_usr_str(uid):
             return None
 
 def name_from_path(path):
-    str = re.search(r'[/](\w+)$', path)
+    str = re.search(r'[/](\w+)[/]?$', path)
     if str:
         return str.groups()[0]
     else:
@@ -24,7 +25,7 @@ def name_from_path(path):
 
 
 def parent_path_from_path(path):
-    str = re.match(r'(.*)[/]\w+$', path)
+    str = re.match(r'(.*)[/]\w+[/]?$', path)
     if str:
         return str.groups()[0]
     else:
@@ -39,12 +40,6 @@ def get_file_info(path):
     return (st.st_uid, st.st_ino, S_ISDIR(st.st_mode), st.st_size,  datetime.datetime.fromtimestamp(st.st_ctime))
 
 
-def get_file_path(event):
-    if event.file_name[0] == '/':
-        return  event.file_name
-    elif event.file_name[0] == '.':
-        return event.dir_path + name_from_path(event.file_name)
-    else:
-        return event.dir_path + event.file_name
+
 
 

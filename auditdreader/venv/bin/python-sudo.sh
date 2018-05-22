@@ -1,3 +1,3 @@
 #!/bin/bash
 
-sudo ./Python3 "$@"
+sudo ./python3.5 "$@"
