@@ -15,11 +15,15 @@ def get_file_path(event):
 # 5-member tuple with the following contents:
 # uid, inode , isdir, size, date of change
 def get_info_by_event(event):
-    info_of_file_or_dir = general.get_file_info(get_file_path(event))
-    if info_of_file_or_dir[1] != event.file_inode:
-        logging.warning("File or directory path name " + get_file_path(event), \
-                        " is not match with inode " + event.file_inode)
-        raise FileNotFoundError
+    try:
+        info_of_file_or_dir = general.get_file_info(get_file_path(event))
+        if info_of_file_or_dir[1] != event.file_inode:
+            #logging.warning("File or directory path name " + get_file_path(event) + \
+            #                " is not match with inode " + event.file_inode)
+            raise FileNotFoundError
+    except FileNotFoundError as e:
+        # TODO: Do normal logging this warning
+        logging.warning("File not exist or inode file in syscall not match with inode in file system.")
     return info_of_file_or_dir
 
 def db_create_or_get_ins_file_or_dir_from_event( db_model, event_inode, event_path, event_parent = None, info = None ):
@@ -112,21 +116,28 @@ def instance_file_dir_rename_or_move( db_model, old_event_inode, new_event_inode
 
 def update_instance_of_file_dir_model( event, move_flag ):
 
+
     """
     Updating or creating new instance (file, directory) in db affected by the event
     :param event: event
     :param move_flag: move or create/change/delete flag
-    :return: return db instance (file or directory) and flag Is a directory or not
+    :return: return db instance (file or directory) or None if file does not exist at this moment
+                and flag Is a directory or not
     """
     parent_dir = None
     info_of_file_or_dir = None
+
     if(move_flag):
         parent_dir, create_flag = db_create_or_get_ins_file_or_dir_from_event(db.Directory,
-                                                                    event.ad_event.dir_inode, event.ad_event.dir_path)
+                                                                              event.ad_event.dir_inode, event.ad_event.dir_path)
         info_of_file_or_dir = get_info_by_event(event.ad_event)
     else:
-        parent_dir, create_flag  = db_create_or_get_ins_file_or_dir_from_event(db.Directory, event.dir_inode, event.dir_path)
+        parent_dir, create_flag  = db_create_or_get_ins_file_or_dir_from_event(db.Directory,
+                                                                               event.dir_inode, event.dir_path)
         info_of_file_or_dir = get_info_by_event(event)
+
+    if info_of_file_or_dir == None:
+        return None
 
     if not info_of_file_or_dir[2]:  # If is a file
         if (move_flag):
@@ -142,9 +153,12 @@ def update_instance_of_file_dir_model( event, move_flag ):
                                                                             info_of_file_or_dir)
         # Update all parents directory size
         update_file_parent_size(create_flag, file, info_of_file_or_dir[3], info_of_file_or_dir[4])
+        # Save changes in db for parent directory
+        parent_dir.save()
         file.size = info_of_file_or_dir[3]
         file.time_update = info_of_file_or_dir[4]
-        #file.save()
+        # Save changes in db
+        file.save()
         return file, False
 
     else:  # If is a directory
@@ -161,14 +175,18 @@ def update_instance_of_file_dir_model( event, move_flag ):
                                                                            info_of_file_or_dir)
         # Update all parents directory size
         update_parent_size(dir, info_of_file_or_dir[3], info_of_file_or_dir[4])
+        # Save changes in db for parent directory
+        parent_dir.save()
         if create_flag:
             dir.size = info_of_file_or_dir[3]
         dir.time_update = info_of_file_or_dir[4]
-        #dir.save()
+        # Save changes in db
+        dir.save()
         return dir, True
 
+
 def add_fs_event_to_db(event):
-    # TODO : Need add exception handler
+    # TODO : Need add exception handlers
 
     if event.ad_event: # Move or rename events
         inst, is_dir = update_instance_of_file_dir_model(event, True)
@@ -176,7 +194,6 @@ def add_fs_event_to_db(event):
         user = db_get_or_create_user(event.uid, event.uid_str)
         if event.evtype.type != "delete":
             inst, is_dir = update_instance_of_file_dir_model(event, False)
-            inst.save()
         else:
             dir = db.Directory.get_or_none(
                 inode = event.file_inode

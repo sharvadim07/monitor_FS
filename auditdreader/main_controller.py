@@ -27,10 +27,10 @@ def add_events_to_db( events_list ):
     for event in events_list:
         if event.id[-2:] == ".1": # If it is ad_event then pass
             continue
-        try:
-            db_control.add_fs_event_to_db(event)
-        except FileNotFoundError as err:
-            logging.warning(err + ' in event - ' + event.id)
+        #try:
+        db_control.add_fs_event_to_db(event)
+        #except FileNotFoundError as err:
+        #    logging.warning(err + ' in event - ' + event.id)
 
 def worker ( queue_fs_events ):
     # start reader deamon
@@ -42,6 +42,7 @@ def worker ( queue_fs_events ):
             # TODO : Add event to database
         elif len(events_list):
                 add_events_to_db(events_list)
+
                 events_list.clear()
         else:
             time.sleep(2)

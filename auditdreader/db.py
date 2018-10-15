@@ -3,7 +3,7 @@ import datetime
 
 # create a peewee database instance -- our models will use this database to
 # persist information
-psql_db = PostgresqlDatabase("auditreader_db", user="root")
+psql_db = PostgresqlDatabase("auditreader_db", user="root", password = "123")
 psql_db.connect()
 
 # model definitions -- the standard "pattern" is to define a base model class
