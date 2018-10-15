@@ -14,13 +14,16 @@ def get_file_path(event):
 
 # 5-member tuple with the following contents:
 # uid, inode , isdir, size, date of change
-def get_info_by_event(event):
+def get_info_by_event(event = None, event_path = None, event_inode = None):
     try:
-        info_of_file_or_dir = general.get_file_info(get_file_path(event))
-        if info_of_file_or_dir[1] != event.file_inode:
-            #logging.warning("File or directory path name " + get_file_path(event) + \
-            #                " is not match with inode " + event.file_inode)
-            raise FileNotFoundError
+        if event_path == None:
+            info_of_file_or_dir = general.get_file_info(get_file_path(event))
+            if info_of_file_or_dir.inode != event.file_inode:
+                raise FileNotFoundError
+        else:
+            info_of_file_or_dir = general.get_file_info(event_path)
+            if event_inode and info_of_file_or_dir.inode != event_inode:
+                raise FileNotFoundError
     except FileNotFoundError as e:
         # TODO: Do normal logging this warning
         logging.warning("File not exist or inode file in syscall not match with inode in file system.")
@@ -33,21 +36,16 @@ def db_create_or_get_ins_file_or_dir_from_event( db_model, event_inode, event_pa
     create_flag = False
     if not instance_of_model_file_dir:
         create_flag = True
-        # 5-member tuple with the following contents:
         # uid, inode , isdir, size, date of modify
         if info:
-            file_dir_info = info
+            info_of_file_or_dir = info
         else:
-            file_dir_info = general.get_file_info(event_path)
-            if file_dir_info[1] != event_inode:
-                logging.warning("Path ", file_dir_info[1] +
-                                " is not match with inode " + event_inode)
-                raise FileNotFoundError
+            info_of_file_or_dir = get_info_by_event(None, event_path, event_inode)
         # Create new instance
         instance_of_model_file_dir = db_model.create(inode=event_inode)
         # Set owner
-        instance_of_model_file_dir.owner = db_get_or_create_user(file_dir_info[0],
-                                                                 general.uid_to_usr_str(file_dir_info[0]))
+        instance_of_model_file_dir.owner = db_get_or_create_user(info_of_file_or_dir.uid,
+                                                                 general.uid_to_usr_str(info_of_file_or_dir.uid))
         # Set name
         name = general.name_from_path(event_path)
         if not name:
@@ -55,16 +53,15 @@ def db_create_or_get_ins_file_or_dir_from_event( db_model, event_inode, event_pa
             return -1
         instance_of_model_file_dir.name = name
         # Set initial size 0
-        instance_of_model_file_dir.size = 0
+        instance_of_model_file_dir.size = info_of_file_or_dir.size
         # Set time update
-        instance_of_model_file_dir.time_update = file_dir_info[4]
+        instance_of_model_file_dir.time_update = info_of_file_or_dir.date_change
         # Set parent
         if not event_parent:
-            # 5-member tuple with the following contents:
             # uid, inode , isdir, size, date of modify
-            parent_info = general.get_file_info(general.parent_path_from_path(event_path))
+            parent_info = get_info_by_event(None, general.parent_path_from_path(event_path))
             parent_directory = db.Directory.get_or_none(
-                inode=parent_info[1]
+                inode=parent_info.inode
             )
             if parent_directory:
                 instance_of_model_file_dir.parent = parent_directory
@@ -130,21 +127,21 @@ def update_instance_of_file_dir_model( event, move_flag ):
     if(move_flag):
         parent_dir, create_flag = db_create_or_get_ins_file_or_dir_from_event(db.Directory,
                                                                               event.ad_event.dir_inode, event.ad_event.dir_path)
-        info_of_file_or_dir = get_info_by_event(event.ad_event)
+        info_of_file_or_dir = get_info_by_event(event.ad_event, None)
     else:
         parent_dir, create_flag  = db_create_or_get_ins_file_or_dir_from_event(db.Directory,
                                                                                event.dir_inode, event.dir_path)
-        info_of_file_or_dir = get_info_by_event(event)
+        info_of_file_or_dir = get_info_by_event(event, None)
 
     if info_of_file_or_dir == None:
         return None
 
-    if not info_of_file_or_dir[2]:  # If is a file
+    if not info_of_file_or_dir.isdir:  # If is a file
         if (move_flag):
             # Function to update a file
             file, create_flag = instance_file_dir_rename_or_move(db.File, event.file_inode, event.ad_event_inode,
                                                                  get_file_path(event.ad_event), parent_dir,
-                                                                 info_of_file_or_dir[4], info_of_file_or_dir)
+                                                                 info_of_file_or_dir.date_change, info_of_file_or_dir)
         else:
             # Function to create a file
             file, create_flag = db_create_or_get_ins_file_or_dir_from_event(db.File, event.file_inode,
@@ -152,11 +149,11 @@ def update_instance_of_file_dir_model( event, move_flag ):
                                                                             parent_dir,
                                                                             info_of_file_or_dir)
         # Update all parents directory size
-        update_file_parent_size(create_flag, file, info_of_file_or_dir[3], info_of_file_or_dir[4])
+        update_file_parent_size(create_flag, file, info_of_file_or_dir.size, info_of_file_or_dir.date_change)
         # Save changes in db for parent directory
         parent_dir.save()
-        file.size = info_of_file_or_dir[3]
-        file.time_update = info_of_file_or_dir[4]
+        file.size = info_of_file_or_dir.size
+        file.time_update = info_of_file_or_dir.date_change
         # Save changes in db
         file.save()
         return file, False
@@ -166,7 +163,7 @@ def update_instance_of_file_dir_model( event, move_flag ):
             # Function to update a direcory
             dir, create_flag = instance_file_dir_rename_or_move(db.Directory, event.file_inode, event.ad_event_inode,
                                                                 get_file_path(event.ad_event), parent_dir,
-                                                                info_of_file_or_dir[4], info_of_file_or_dir)
+                                                                info_of_file_or_dir.date_change, info_of_file_or_dir)
         else:
             # Function to create a directory
             dir, create_flag = db_create_or_get_ins_file_or_dir_from_event(db.Directory, event.file_inode,
@@ -174,12 +171,12 @@ def update_instance_of_file_dir_model( event, move_flag ):
                                                                            parent_dir,
                                                                            info_of_file_or_dir)
         # Update all parents directory size
-        update_parent_size(dir, info_of_file_or_dir[3], info_of_file_or_dir[4])
+        update_parent_size(dir, info_of_file_or_dir.size, info_of_file_or_dir.date_change)
         # Save changes in db for parent directory
         parent_dir.save()
         if create_flag:
-            dir.size = info_of_file_or_dir[3]
-        dir.time_update = info_of_file_or_dir[4]
+            dir.size = info_of_file_or_dir.size
+        dir.time_update = info_of_file_or_dir.date_change
         # Save changes in db
         dir.save()
         return dir, True

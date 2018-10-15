@@ -38,7 +38,7 @@ class AuditReaderProcess(multiprocessing.Process):
                 audit_lines.clear()
                 # while reader deamon working we add NEW lines to list audit_lines and parse its
                 while True:
-                    if len(audit_lines) > 3: # buf size is 3
+                    if len(audit_lines) > 1: # buf size is 3
                         self.parse_audit_lines(audit_lines)
                         # Send new full of info events to controller
                         self.send_events_to_queue()
@@ -134,33 +134,3 @@ class AuditReaderProcess(multiprocessing.Process):
         # return ptr_read_line_after_parse
 
 
-#class ReaderProcess(multiprocessing.Process):
-#     """
-#     Reader Process of auditd logging file. Performed as a separated process
-#     Arguments:
-#         auditd_name_file -- path and name to auditd log file
-#         output_q -- queue (multiprocessing.JoinableQueue()) for sending read lines to the parent process
-#     Methods:
-#         run -- run the read auditd log file
-#     """
-#
-#     def __init__(self, auditd_name_file, output_q):
-#         multiprocessing.Process.__init__(self)
-#         self.auditd_name_file = auditd_name_file
-#         self.output_q = output_q
-#
-#     def run(self):
-#         try:
-#             audit_file = open(self.auditd_name_file, 'r')
-#             audit_lines = audit_file.readlines()
-#             self.output_q.put(audit_lines)
-#             self.output_q.join()
-#             while True:
-#                 line = audit_file.readline()
-#                 if line:
-#                     self.output_q.put(line)
-#                 else:
-#                     time.sleep(1)
-#         except (IOError, ChildProcessError) as e_status:
-#             logging.error(e_status)
-#             raise e_status

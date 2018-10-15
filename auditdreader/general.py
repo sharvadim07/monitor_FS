@@ -31,13 +31,23 @@ def parent_path_from_path(path):
     else:
         return  None
 
-# This function takes the name of a file, and returns a
-# 5-member tuple with the following contents:
-# uid, inode , isdir, size, date of change
+class FileInfo(object):
+    def __init__(self, st):
+        self.uid = st.st_uid
+        self.inode = st.st_ino
+        self.isdir = S_ISDIR(st.st_mode)
+        self.size = st.st_size
+        self.date_change = datetime.datetime.fromtimestamp(st.st_ctime)
+
 def get_file_info(path):
-     # TODO : Add error if file not exist
-    st = os.stat(path)
-    return (st.st_uid, st.st_ino, S_ISDIR(st.st_mode), st.st_size,  datetime.datetime.fromtimestamp(st.st_ctime))
+    """
+    # This function takes the name of a file, and returns a
+    5-member FileInfo object with the following attributes:
+    uid, inode , isdir, size, date of change
+    :param path: Path to file in file system
+    :return: Object of FileInfo class
+    """
+    return FileInfo(os.stat(path))
 
 
 
