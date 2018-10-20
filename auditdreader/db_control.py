@@ -83,7 +83,7 @@ def update_parent_size( instance, new_size, time_update ):
         return
     instance.parent.size += new_size
     instance.parent.time_update = time_update
-
+    instance.parent.save()
     update_parent_size(instance.parent, new_size, time_update)
 
 def update_file_parent_size( create_flag, file,size,time_update ):
@@ -94,6 +94,7 @@ def update_file_parent_size( create_flag, file,size,time_update ):
         update_size = size - file.size
         if update_size != 0:
             update_parent_size(file, update_size, time_update)
+    #return file.parent
 
 
 def instance_file_dir_rename_or_move( db_model, old_event_inode, new_event_inode, event_path_to,
@@ -123,16 +124,18 @@ def update_instance_of_file_dir_model( event, move_flag ):
     """
     parent_dir = None
     info_of_file_or_dir = None
-
+    create_parent_dir_flag = False
     if(move_flag):
-        parent_dir, create_flag = db_create_or_get_ins_file_or_dir_from_event(db.Directory,
+        parent_dir, create_parent_dir_flag = db_create_or_get_ins_file_or_dir_from_event(db.Directory,
                                                                               event.ad_event.dir_inode, event.ad_event.dir_path)
         info_of_file_or_dir = get_info_by_event(event.ad_event, None)
     else:
-        parent_dir, create_flag  = db_create_or_get_ins_file_or_dir_from_event(db.Directory,
+        parent_dir, create_parent_dir_flag  = db_create_or_get_ins_file_or_dir_from_event(db.Directory,
                                                                                event.dir_inode, event.dir_path)
         info_of_file_or_dir = get_info_by_event(event, None)
-
+    if create_parent_dir_flag:
+        # Save changes in db for parent directory
+        parent_dir.save()
     if info_of_file_or_dir == None:
         return None
 
@@ -150,8 +153,7 @@ def update_instance_of_file_dir_model( event, move_flag ):
                                                                             info_of_file_or_dir)
         # Update all parents directory size
         update_file_parent_size(create_flag, file, info_of_file_or_dir.size, info_of_file_or_dir.date_change)
-        # Save changes in db for parent directory
-        parent_dir.save()
+
         file.size = info_of_file_or_dir.size
         file.time_update = info_of_file_or_dir.date_change
         # Save changes in db
@@ -172,8 +174,7 @@ def update_instance_of_file_dir_model( event, move_flag ):
                                                                            info_of_file_or_dir)
         # Update all parents directory size
         update_parent_size(dir, info_of_file_or_dir.size, info_of_file_or_dir.date_change)
-        # Save changes in db for parent directory
-        parent_dir.save()
+
         if create_flag:
             dir.size = info_of_file_or_dir.size
         dir.time_update = info_of_file_or_dir.date_change
