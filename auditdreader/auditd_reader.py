@@ -36,20 +36,22 @@ class AuditReaderProcess(multiprocessing.Process):
                 self.send_events_to_queue()
                 # clean readed lines
                 audit_lines.clear()
+                end_of_audit_log = True
                 # while reader deamon working we add NEW lines to list audit_lines and parse its
                 while True:
-                    if len(audit_lines) > 1: # buf size is 3
+                    if end_of_audit_log and len(audit_lines) > 0 :
                         self.parse_audit_lines(audit_lines)
                         # Send new full of info events to controller
+                        # and delete them from events_dict
                         self.send_events_to_queue()
-                        # Clear dictionary
-                        self.events_dict.clear()
                         audit_lines.clear()
                     else:
                         line = audit_file.readline()
                         if line:
+                            end_of_audit_log = False
                             audit_lines.append(line)
                         else:
+                            end_of_audit_log = True
                             time.sleep(3)
 
             else:
@@ -59,10 +61,17 @@ class AuditReaderProcess(multiprocessing.Process):
             logging.error(e_status)
             raise e_status
 
+    # Send new full of info events to controller
+    # and delete them from events_dict
     def send_events_to_queue(self):
+        id_ev_for_delete = []
         for ev in self.events_dict:
             if self.events_dict[ev].items == self.events_dict[ev].cur_item:
                 self.output_q.put(self.events_dict[ev])
+                id_ev_for_delete.append(ev)
+        for ev in id_ev_for_delete:
+            self.events_dict.pop(ev)
+
 
     def parse_audit_line(self,line):
 

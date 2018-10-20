@@ -6,3 +6,15 @@ ERROR:root:Error while parsing audit line
 ERROR:root:Error while parsing audit line
 ERROR:root:Error while parsing audit line
 ERROR:root:Error while parsing audit line
+WARNING:root:In line
+type=PATH msg=audit(1540009355.020:5289): item=0 name="/home/vadim/test_audit" inode=2502724 dev=08:01 mode=040755 ouid=1000 ogid=1000 rdev=00:00 nametype=PARENT cap_fp=0000000000000000 cap_fi=0000000000000000 cap_fe=0 cap_fver=0
+
+ not expected CWD or PATH type
+WARNING:root:In line
+type=PATH msg=audit(1540009355.020:5289): item=1 name="test2file" inode=2501050 dev=08:01 mode=0100644 ouid=1000 ogid=1000 rdev=00:00 nametype=CREATE cap_fp=0000000000000000 cap_fi=0000000000000000 cap_fe=0 cap_fver=0
+
+ not expected CWD or PATH type
+WARNING:root:In line
+type=PATH msg=audit(1540010195.818:5306): item=0 name="/home/vadim/test_audit" inode=2502724 dev=08:01 mode=040755 ouid=1000 ogid=1000 rdev=00:00 nametype=PARENT cap_fp=0000000000000000 cap_fi=0000000000000000 cap_fe=0 cap_fver=0
+
+ not expected CWD or PATH type
