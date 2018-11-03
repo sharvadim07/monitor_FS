@@ -23,7 +23,7 @@ class User(BaseModel):
 class Directory(BaseModel):
     owner = ForeignKeyField(User, backref = 'directories', null = True)
     name = CharField(null=True)
-    inode = IntegerField(unique = True)
+    inode = BigIntegerField() # If inode is negative then inst was deleted from FS
     parent = ForeignKeyField('self', backref = 'children', null=True)
     size = BigIntegerField(default=0)
     time_update = DateTimeField(default=datetime.datetime.now)
@@ -32,7 +32,7 @@ class Directory(BaseModel):
 class File(BaseModel):
     owner = ForeignKeyField(User, backref = 'files', null = True)
     name = CharField(null = True)
-    inode = IntegerField(unique = True)
+    inode = BigIntegerField() # If inode is negative then inst was deleted from FS
     parent = ForeignKeyField(Directory, backref = 'children', null = True)
     size = BigIntegerField(default = 0)
     time_update = DateTimeField(default = datetime.datetime.now)
@@ -40,11 +40,12 @@ class File(BaseModel):
 # the file system event model
 class Event(BaseModel):
     id = CharField(unique = True)
-    file = ForeignKeyField(File, backref = 'events')
-    directory = ForeignKeyField(Directory, backref = 'events')
+    file = ForeignKeyField(File, backref = 'events', null = True)
+    directory = ForeignKeyField(Directory, backref = 'events', null = True)
     user = ForeignKeyField(User, backref = 'events')
     time = DateTimeField(default = datetime.datetime.now)
     size = BigIntegerField()
+    type = CharField()
 
 
 def create_tables():

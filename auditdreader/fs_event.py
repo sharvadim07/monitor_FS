@@ -1,6 +1,9 @@
 import logging
 import re
 import general
+import datetime
+
+
 
 class FSEvent(object):
     """
@@ -21,7 +24,7 @@ class FSEvent(object):
 
     def __init__(self, id):
         self.__id = id
-        self.__type = EventType()
+        self.__evtype = EventType()
         self.__cur_item = 0
         self.__items = 0
         self.__uid_str = ""
@@ -30,7 +33,8 @@ class FSEvent(object):
         # self.__dir_path = dir_path
         # self.__uid = uid
         # self.__type = EventType(type)
-        # self.__time = time
+        # Set time for create event object
+        self.__time = datetime.datetime.now()
         # self.__volume_info = volume_info  # In bytes
         FSEvent.num_fs_events += 1
 
@@ -67,7 +71,7 @@ class FSEvent(object):
 
     @property
     def evtype(self):
-        return self.__type
+        return self.__evtype
 
     # This property for correct parsing all syscall items
     @property
@@ -81,6 +85,10 @@ class FSEvent(object):
     @property
     def ad_event(self):
         return self.__ad_event
+
+    @property
+    def time(self):
+        return self.__time
 
     # @property
     # def time(self):
@@ -157,9 +165,9 @@ class FSEvent(object):
             raise TypeError
 
     @evtype.setter
-    def evtype(self, type):
-        if isinstance(type, str):
-            self.__type.type = type
+    def evtype(self, type_str):
+        if isinstance(type_str, str):
+            self.__evtype.type_str = type_str
         else:
             logging.warning("Incorrect type for type attribute!")
             raise TypeError
@@ -285,34 +293,34 @@ class EventType(object):
         type -- type in string format. use setter of change value
     """
 
-    def __init__(self, type = "change"):
-        self.type = type
+    def __init__(self, type_str = "change"):
+        self.type_str = type_str
 
     def set_create(self):
-        self.__type = "create"
+        self.__type_str = "create"
 
     def set_change(self):
-        self.__type = "change"
+        self.__type_str = "change"
 
     def set_delete(self):
-        self.__type = "delete"
+        self.__type_str = "delete"
 
     def set_rename(self):
-        self.__type = "rename"
+        self.__type_str = "rename"
 
     @property
-    def type(self):
-        return self.__type
+    def type_str(self):
+        return self.__type_str
 
     @type.setter
-    def type(self, type):
-        if type in ("create", "change", "delete", "rename"):
-            self.__type = type
-        elif type in ("5","8","9","39","257"):
+    def type(self, type_str):
+        if type_str in ("create", "change", "delete", "rename"):
+            self.__type_str = type_str
+        elif type_str in ("5","8","9","39","257"):
             self.set_create()
-        elif type in ("10","40","301"):
+        elif type_str in ("10","40","301"):
             self.set_delete()
-        elif type in ("38","82"):
+        elif type_str in ("38","82"):
             self.set_rename()
         else:
             logging.debug("Set default type - change.")

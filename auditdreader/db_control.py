@@ -67,7 +67,8 @@ def db_create_or_get_ins_file_or_dir_from_event( db_model, event_inode, event_pa
                 instance_of_model_file_dir.parent = parent_directory
         else:
             instance_of_model_file_dir.parent = event_parent
-        #instance_of_model_file_dir.save()
+        instance_of_model_file_dir.save()
+
     return (instance_of_model_file_dir, create_flag)
 
 def db_get_or_create_user( uid, uid_str ):
@@ -110,10 +111,15 @@ def instance_file_dir_rename_or_move( db_model, old_event_inode, new_event_inode
 
     return (inst, create_flag)
 
+# Function for checking order of changes
+def check_time_update(inst, event):
+    if inst.time_update < event.time:
+        return True
+    else:
+        return False
 
 
 def update_instance_of_file_dir_model( event, move_flag ):
-
 
     """
     Updating or creating new instance (file, directory) in db affected by the event
@@ -136,6 +142,8 @@ def update_instance_of_file_dir_model( event, move_flag ):
     if create_parent_dir_flag:
         # Save changes in db for parent directory
         parent_dir.save()
+    elif not check_time_update(parent_dir,event):
+            return None
     if info_of_file_or_dir == None:
         return None
 
@@ -151,6 +159,8 @@ def update_instance_of_file_dir_model( event, move_flag ):
                                                                             get_file_path(event),
                                                                             parent_dir,
                                                                             info_of_file_or_dir)
+        if not create_flag and not check_time_update(file, event):
+            return None
         # Update all parents directory size
         update_file_parent_size(create_flag, file, info_of_file_or_dir.size, info_of_file_or_dir.date_change)
 
@@ -172,6 +182,8 @@ def update_instance_of_file_dir_model( event, move_flag ):
                                                                            get_file_path(event),
                                                                            parent_dir,
                                                                            info_of_file_or_dir)
+        if not create_flag and not check_time_update(dir, event):
+            return None
         # Update all parents directory size
         update_parent_size(dir, info_of_file_or_dir.size, info_of_file_or_dir.date_change)
 
@@ -182,26 +194,73 @@ def update_instance_of_file_dir_model( event, move_flag ):
         dir.save()
         return dir, True
 
+def new_event_in_db(inst, is_dir, event):
+    if inst:
+        db_event = None
+        if is_dir:
+            db_event = db.Event.create(
+                id = event.id,
+                file = None,
+                directory = inst,
+                user = db_get_or_create_user(event.uid, event.uid_str),
+                time = inst.time_update,
+                size = inst.size,
+                type = event.evtype.type_str
+            )
+        else:
+            db_event = db.Event.create(
+                id=event.id,
+                file=inst,
+                directory=None,
+                user=db_get_or_create_user(event.uid, event.uid_str),
+                time=inst.time_update,
+                size=inst.size,
+                type=event.evtype.type_str
+            )
+        db_event.save()
+
+def delete_inst(inst, is_dir, event):
+    inst.inode = inst.inode - inst.inode*2 # Make negative value for inode. It is mean that inst was deleted in FS.
+    inst.time_update = event.time
+    inst.size = 0
+    inst.save()
+    new_event_in_db(inst, is_dir, event)
+
+# Select all childs of this dir_inst and kill them))
+def delete_dir_inst(dir_inst, event):
+    child_dirs = db.Directory.select(
+        parent = dir_inst
+    )
+    child_files = db.File.select(
+        parent = dir_inst
+    )
+    if child_files:
+        for file in child_files:
+            delete_inst(file, False, event)
+    if child_dirs:
+        for dir in child_dirs:
+            delete_dir_inst(dir, event)
+
 
 def add_fs_event_to_db(event):
-    # TODO : Need add exception handlers
-
     if event.ad_event: # Move or rename events
         inst, is_dir = update_instance_of_file_dir_model(event, True)
+        new_event_in_db(inst, is_dir, event)
     else: # Create, change, delete events
         user = db_get_or_create_user(event.uid, event.uid_str)
-        if event.evtype.type != "delete":
+        if event.evtype.type_str != "delete":
             inst, is_dir = update_instance_of_file_dir_model(event, False)
+            new_event_in_db(inst, is_dir, event)
         else:
             dir = db.Directory.get_or_none(
                 inode = event.file_inode
             )
             if dir:
-                dir.delete_instance()
+                delete_dir_inst(dir, event)
             else:
                 file = db.File.get_or_none(
                     inode =  event.file_inode
                 )
                 if file:
-                    file.delete_instance()
+                    delete_inst(file, False, event)
 

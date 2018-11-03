@@ -115,7 +115,7 @@ class AuditReaderProcess(multiprocessing.Process):
                         event.parse_cwd(line)
                     elif type_and_id.groups()[0] == "PATH":  # parsing PATH line
                         if event.dir_path:
-                            if event.evtype.type == "rename":
+                            if event.evtype.type_str == "rename":
                                 # Create additional event for rename or move syscalls
                                 if event.parse_path_line(line, True):
                                     self.events_dict[event.ad_event.id] = event.ad_event
